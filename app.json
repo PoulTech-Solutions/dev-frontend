@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Poultech Solutions",
+    "slug": "poultech-solutions",
+    "scheme": [
+      "poultech",
+      "com.poultech.solutions"
+    ],
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B2A5B"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "imageWidth": 112,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B2A5B"
+        }
+      ],
+      "expo-secure-store",
+      "expo-font",
+      "expo-web-browser",
+      "expo-asset"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.poultech.solutions",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.poultech.solutions",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/splash-icon.png",
+        "backgroundColor": "#0B2A5B"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
