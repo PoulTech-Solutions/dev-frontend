@@ -1,14 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { useWindowDimensions } from "react-native";
 import { AppMobileHeader, AppTabBar } from "../../components/navigation/AppTabBar";
-import { SIDEBAR_BREAKPOINT } from "../../hooks/useAppLayout";
+import { useAppLayout } from "../../hooks/useAppLayout";
 import { useLanguage } from "../../utils/i18n";
 
 export default function TabLayout() {
-  const { width } = useWindowDimensions();
   const { t } = useLanguage();
-  const showSidebar = width >= SIDEBAR_BREAKPOINT;
+  const { sidebarVisible: showSidebar } = useAppLayout();
 
   return (
     <Tabs

@@ -7,6 +7,7 @@ import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ModuleHeader } from "../../../components/ui/ModuleHeader";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 import { useAuthStore } from "../../../store/useAuthStore";
 import {
@@ -38,6 +39,7 @@ function formatInvoiceDate(value: string, language: string) {
 export default function BillingScreen() {
   const router = useRouter();
   const { width } = useAppLayout();
+  const { colors } = useAppTheme();
   const { language, t } = useLanguage();
   const user = useAuthStore((state) => state.user);
   const demoMode = Boolean(user?.id.startsWith("mock-"));
@@ -199,7 +201,7 @@ export default function BillingScreen() {
   } as const;
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28 }}
         keyboardShouldPersistTaps="handled"

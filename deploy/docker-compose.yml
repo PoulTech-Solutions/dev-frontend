@@ -1,0 +1,10 @@
+# Local demo: from this folder run `docker compose up --build`
+# Then open http://localhost:8080
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped

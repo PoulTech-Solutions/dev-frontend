@@ -10,6 +10,7 @@ export interface AuthUser {
   farmName?: string;
   city?: string;
   state?: string;
+  photoUri?: string;
   role?: UserRole | null;
 }
 
@@ -36,6 +37,7 @@ interface AuthState {
     farmName?: string;
     city?: string;
     state?: string;
+    photoUri?: string;
     role: UserRole;
   }) => Promise<void>;
   signOut: () => Promise<void>;
@@ -107,6 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       farmName: profile.farmName?.trim() || undefined,
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
+      photoUri: profile.photoUri ?? currentUser.photoUri,
     };
     const { saveAuthSession } = await import("../services/authStorage");
     if (get().isRemembered) {

@@ -1,0 +1,48 @@
+---
+description: Core rules for this Expo (web + Android + iOS) project
+alwaysApply: true
+---
+
+# Project
+- Client app: Expo (React Native) + TypeScript (strict). One codebase for web, Android, iOS.
+- Routing: Expo Router (file-based, `app/` folder). Never use React Navigation APIs directly.
+- Styling: NativeWind v4 (Tailwind v3 syntax) via `className`. Do not use Tailwind v4 / NativeWind v5 syntax.
+- Client state: Zustand (stores in `store/`, persisted with AsyncStorage).
+- Server state: TanStack Query (hooks in `hooks/queries/`). All API calls go through `lib/api.ts`.
+- Forms: React Hook Form + Zod.
+- Package manager: npm. Use only this one.
+- API base URL: `EXPO_PUBLIC_API_URL` from `.env`.
+
+# Response style (save tokens)
+- Be brief. No intro, no recap. Max 2-3 lines of summary after changes.
+- Edit files directly. Never repeat unchanged code.
+- Don't explain basics unless asked.
+- Ask only if a wrong guess would waste real work. Otherwise assume and state the assumption in one line.
+- Read only the files needed. Don't scan the whole repo.
+- Don't create README, docs, tests or extra files unless asked.
+
+# Code rules
+- Use only React Native components (View, Text, Pressable, ScrollView, FlatList, TextInput). Never use HTML tags or DOM APIs (div, span, button, window, document, localStorage).
+- Must work on web, Android and iOS. Platform differences: `Platform.select` for small ones, `.web.tsx` / `.native.tsx` files for large ones.
+- Style with `className` only. No inline style objects or StyleSheet unless a class can't do it. No hardcoded colors or spacing: use Tailwind theme tokens from `tailwind.config.js`.
+- Dark mode and responsive: use Tailwind variants (`dark:`, `md:`, `lg:`). Mobile first.
+- Install packages with `npx expo install <pkg>`. Don't add a new library if the current stack covers it; tell me first.
+- Function components + hooks. No `any` unless unavoidable.
+- Safe areas: `react-native-safe-area-context`.
+- Long lists: FlatList/FlashList, never `ScrollView` + `.map`.
+- Images: `expo-image`.
+- Every screen that fetches data handles loading, error and empty states.
+- Don't use Zustand for API data and don't use TanStack Query for UI-only state.
+- No fetch/axios calls inside components. Use query hooks.
+- Tokens: `expo-secure-store` on native, safe fallback on web. Other storage: AsyncStorage.
+- Reuse components in `components/` before creating new ones. Follow existing folder structure and naming.
+- Never hardcode user-facing strings or URLs if a constants file exists.
+- Never commit secrets. Only `EXPO_PUBLIC_*` vars reach the client.
+
+# Do not touch
+- `android/`, `ios/`, lockfiles, `app.json` / `app.config.ts`, `babel.config.js`, `metro.config.js`, `tailwind.config.js`: only if the task requires it, and say so first.
+- Don't upgrade Expo SDK or dependencies on your own.
+
+# Verify (after code changes, keep output short)
+- Run `npx tsc --noEmit` and `npx expo lint`. Fix errors you caused.
+- Don't start the dev server or run builds unless asked.

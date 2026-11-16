@@ -8,6 +8,7 @@ import { ModuleHeader } from "../../../components/ui/ModuleHeader";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { DEMO_BOOKINGS } from "../../../utils/demoData";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 
 const SERVICES = [
@@ -85,6 +86,7 @@ function formatBookingDate(date: Date, language: string) {
 
 export default function ServiceBookingScreen() {
   const { width } = useAppLayout();
+  const { colors } = useAppTheme();
   const { language, t } = useLanguage();
   const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
   const { service: requestedService } = useLocalSearchParams<{ service?: string }>();
@@ -158,7 +160,7 @@ export default function ServiceBookingScreen() {
   ];
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}

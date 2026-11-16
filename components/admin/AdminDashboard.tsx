@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAdminDemoStore, type AdminDemoFarm, type AdminDemoRate } from "../../store/useAdminDemoStore";
 import { useAppLayout } from "../../hooks/useAppLayout";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 
 const COLORS = {
@@ -244,6 +245,7 @@ export function AdminDashboard({
   demoMode: boolean;
 }) {
   const { width } = useAppLayout();
+  const { colors: theme } = useAppTheme();
   const { t } = useLanguage();
   const farms = useAdminDemoStore((state) => state.farms);
   const rates = useAdminDemoStore((state) => state.rates);
@@ -255,7 +257,7 @@ export function AdminDashboard({
   );
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: COLORS.cream }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: theme.page }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 }}
         showsVerticalScrollIndicator={false}

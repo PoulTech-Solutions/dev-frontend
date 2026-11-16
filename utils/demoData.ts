@@ -11,6 +11,9 @@ export const DEMO_PRODUCTS = [
     icon: "egg-outline",
     color: "#B45309",
     background: "#FEF3C7",
+    picture: "chicken",
+    dealerName: "Sunrise Hatchery",
+    dealerPhone: "9876501101",
   },
   {
     id: "layer-feed",
@@ -24,6 +27,9 @@ export const DEMO_PRODUCTS = [
     icon: "nutrition-outline",
     color: "#15803D",
     background: "#DCFCE7",
+    picture: "sack",
+    dealerName: "Pune Feed Traders",
+    dealerPhone: "9876501102",
   },
   {
     id: "broiler-feed",
@@ -37,6 +43,9 @@ export const DEMO_PRODUCTS = [
     icon: "leaf-outline",
     color: "#0369A1",
     background: "#E0F2FE",
+    picture: "wheat",
+    dealerName: "Nashik Grain House",
+    dealerPhone: "9876501103",
   },
   {
     id: "drinkers",
@@ -50,6 +59,9 @@ export const DEMO_PRODUCTS = [
     icon: "water-outline",
     color: "#7E22CE",
     background: "#F3E8FF",
+    picture: "water",
+    dealerName: "Farm Equip Desk",
+    dealerPhone: "9876501104",
   },
 ] as const;
 
@@ -117,6 +129,16 @@ export const DEMO_BOOKINGS = [
     time: "11:00 AM",
     status: "Requested",
   },
+] as const;
+
+export const DEMO_RAW_MATERIALS = [
+  { id: "soya-doc", name: "Soya DOC", price: 48, unit: "kg" },
+  { id: "maize", name: "Maize", price: 24, unit: "kg" },
+  { id: "dorb", name: "DORB", price: 18, unit: "kg" },
+  { id: "ddgs", name: "DDGS", price: 22, unit: "kg" },
+  { id: "gnte", name: "GNTE", price: 36, unit: "kg" },
+  { id: "mustard", name: "Mustard", price: 52, unit: "kg" },
+  { id: "rapeseed", name: "Rapeseed", price: 49, unit: "kg" },
 ] as const;
 
 export const DEMO_WALLET = {

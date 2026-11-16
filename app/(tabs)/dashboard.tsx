@@ -1,814 +1,478 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
+import { ImageBackground } from "expo-image";
 import { useRouter, type Href } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AdminDashboard } from "../../components/admin/AdminDashboard";
-import { ModuleOption } from "../../components/ui/ModuleOption";
-import { RateSparkline } from "../../components/ui/RateSparkline";
-import { useAdminDemoStore } from "../../store/useAdminDemoStore";
-import { useAuthStore } from "../../store/useAuthStore";
-import type { UserRole } from "../../store/useAuthStore";
-import { DEMO_FLOCKS } from "../../utils/demoData";
+import { FormModal } from "../../components/ui/FormModal";
+import { PictureSymbol, type PictureName } from "../../components/ui/PictureSymbol";
+import { RateChart } from "../../components/ui/RateChart";
+import { RateTicker } from "../../components/ui/RateTicker";
 import { useAppLayout } from "../../hooks/useAppLayout";
-import { useLanguage } from "../../utils/i18n";
+import { useAppTheme } from "../../hooks/useAppTheme";
+import { rateDelta, ratePoints, rateSeries, useAdminDemoStore, type RateWindow } from "../../store/useAdminDemoStore";
+import { useAuthStore } from "../../store/useAuthStore";
+import { DEMO_RAW_MATERIALS } from "../../utils/demoData";
+import { useLanguage, type AppLanguage } from "../../utils/i18n";
 
-type IconName = keyof typeof Ionicons.glyphMap;
+type RateRange = "month" | "year";
+type RateDetail = { id: "eggs" | "culls" | "broilers"; range: RateRange };
 
-const COLORS = {
-  cream: "#FAF7F0",
-  white: "#FFFFFF",
-  primary: "#0B2A5B",
-  forest: "#14532D",
-  accent: "#16A34A",
-  ink: "#0F172A",
-  muted: "#64748B",
-  line: "#E2E8F0",
+
+const FARM_POINTS = [
+  "Keep your poultry on your finger",
+  "Handle your farm in an organised and simple way",
+  "Now it is time to relax and enjoy your farming unit",
+] as const;
+
+const RATE_CARDS: { id: "eggs" | "culls" | "broilers"; title: string; icon: PictureName; color: string; background: string }[] = [
+  { id: "eggs", title: "Egg rate", icon: "egg", color: "#B45309", background: "#FEF3C7" },
+  { id: "culls", title: "Culls rate", icon: "bird", color: "#C2410C", background: "#FFEDD5" },
+  { id: "broilers", title: "Broiler rate", icon: "chicken", color: "#15803D", background: "#DCFCE7" },
+];
+
+const SERVICES: { title: string; icon: PictureName }[] = [
+  { title: "Vaccination team", icon: "syringe" },
+  { title: "Medicine door delivery", icon: "pill" },
+  { title: "Water quality testing", icon: "water" },
+  { title: "Feed quality testing", icon: "wheat" },
+  { title: "Flock health checkup", icon: "stethoscope" },
+];
+
+const TRENDS: { id: "eggs" | "culls" | "broilers"; title: string; icon: PictureName }[] = [
+  { id: "eggs", title: "Egg rate trend", icon: "egg" },
+  { id: "culls", title: "Culls rate trend", icon: "bird" },
+  { id: "broilers", title: "Broiler rate trend", icon: "chicken" },
+];
+
+const MATERIAL_PICTURE: Record<string, PictureName> = {
+  "soya-doc": "seed",
+  maize: "corn",
+  dorb: "rice",
+  ddgs: "grain",
+  gnte: "peanut",
+  mustard: "flower",
+  rapeseed: "sprout",
 };
 
-const FONT_REGULAR = "Poppins_400Regular";
-const FONT_MEDIUM = "Poppins_500Medium";
-const FONT_SEMIBOLD = "Poppins_600SemiBold";
-const FONT_BOLD = "Poppins_700Bold";
+const UP = "#15803D";
+const DOWN = "#B91C1C";
 
-interface QuickAction {
-  title: string;
-  subtitle: string;
-  icon: IconName;
-  background: string;
-  color: string;
-  route: Href;
+function trendColor(values: number[], muted: string) {
+  const delta = rateDelta(values);
+  if (delta > 0) return UP;
+  if (delta < 0) return DOWN;
+  return muted;
 }
 
-interface DashboardModule {
-  title: string;
-  subtitle: string;
-  icon: IconName;
-  color: string;
-  background: string;
-  layout?: "horizontal";
-  options: {
-    title: string;
-    subtitle: string;
-    icon: IconName;
-    color: string;
-    background: string;
-    route: Href;
-    rateId?: string;
-  }[];
+function money(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-function firstName(name?: string) {
-  const cleaned = name?.trim();
-  return cleaned ? cleaned.split(/\s+/)[0] : "there";
+function quoteColor(value: number, previous: number, ink: string) {
+  if (value > previous) return UP;
+  if (value < previous) return DOWN;
+  return ink;
 }
 
-function DashboardHeader({ onNotificationPress }: { onNotificationPress: () => void }) {
-  return (
-    <View
-      style={{
-        minHeight: 42,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "flex-end",
-      }}
-    >
-      <Pressable
-        accessibilityLabel="Notifications"
-        accessibilityRole="button"
-        className="cursor-pointer hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-accent"
-        onPress={onNotificationPress}
-        style={{
-          width: 40,
-          height: 40,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: COLORS.line,
-          backgroundColor: COLORS.white,
-        }}
-      >
-        <Ionicons color={COLORS.primary} name="notifications-outline" size={19} />
-      </Pressable>
-    </View>
-  );
-}
-
-function WelcomeCard({
-  name,
-  role,
-  onPress,
-}: {
-  name: string;
-  role: UserRole | null | undefined;
-  onPress: () => void;
-}) {
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   const { t } = useLanguage();
-  const greeting =
-    t(role === "customer" ? "Welcome to your marketplace." : "Your farm, growing stronger.");
+  const { colors } = useAppTheme();
   return (
-    <View
-      style={{
-        minHeight: 222,
-        overflow: "hidden",
-        borderRadius: 28,
-        backgroundColor: COLORS.forest,
-      }}
-    >
-      <Image
-        accessibilityLabel="Farmer tending to poultry at sunrise"
-        contentFit="cover"
-        source={require("../../assets/images/login-hero.jpg")}
-        style={{
-          position: "absolute",
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: "58%",
-          height: "100%",
-          opacity: 0.63,
-        }}
-      />
-      <LinearGradient
-        colors={["#14532D", "rgba(20,83,45,0.93)", "rgba(11,42,91,0.52)"]}
-        locations={[0, 0.54, 1]}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
-      />
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "flex-start",
-          paddingHorizontal: 26,
-          paddingVertical: 24,
-        }}
-      >
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ width: 4, height: 22, borderRadius: 4, backgroundColor: colors.accent, marginRight: 10 }} />
+        <Text style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 22 }}>{t(title)}</Text>
+      </View>
+      {subtitle ? (
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.15)",
-            paddingHorizontal: 11,
-            paddingVertical: 6,
+            marginTop: 10,
+            borderRadius: 12,
+            backgroundColor: colors.promoBg,
+            borderWidth: 1,
+            borderColor: colors.promoBorder,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
           }}
         >
-          <Ionicons color="#D9F99D" name="sunny-outline" size={14} />
-          <Text
-            style={{
-              marginLeft: 6,
-              color: "#F0FDF4",
-              fontFamily: FONT_MEDIUM,
-              fontSize: 11,
-            }}
-          >
-            POULTECH FARM DASHBOARD
-          </Text>
+          <Text style={{ color: colors.promoText, fontFamily: "Poppins_600SemiBold", fontSize: 14, lineHeight: 20 }}>{t(subtitle)}</Text>
         </View>
-        <Text
-          style={{
-            maxWidth: 440,
-            marginTop: 15,
-            color: COLORS.white,
-            fontFamily: FONT_BOLD,
-            fontSize: 27,
-            lineHeight: 36,
-          }}
-        >
-          {t("Good morning, {name} 👋").replace("{name}", name)}
-        </Text>
-        <Text
-          style={{
-            maxWidth: 430,
-            marginTop: 6,
-            color: "rgba(255,255,255,0.86)",
-            fontFamily: FONT_REGULAR,
-            fontSize: 13,
-            lineHeight: 20,
-          }}
-        >
-          {greeting}
-        </Text>
-        <Pressable
-          accessibilityLabel={role === "customer" ? "Browse marketplace" : "View farm overview"}
-          accessibilityRole="button"
-          className="cursor-pointer hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-white"
-          onPress={onPress}
-          style={{
-            minHeight: 42,
-            marginTop: 18,
-            flexDirection: "row",
-            alignItems: "center",
-            borderRadius: 13,
-            backgroundColor: COLORS.white,
-            paddingHorizontal: 15,
-          }}
-        >
-          <Text style={{ color: COLORS.forest, fontFamily: FONT_SEMIBOLD, fontSize: 12 }}>
-            {t(role === "customer" ? "Explore marketplace" : "View farm overview")}
-          </Text>
-          <Ionicons
-            color={COLORS.forest}
-            name="arrow-forward"
-            size={15}
-            style={{ marginLeft: 8 }}
-          />
-        </Pressable>
-      </View>
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          right: 20,
-          top: 20,
-          width: 52,
-          height: 52,
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.18)",
-          borderRadius: 26,
-        }}
-      />
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          right: 36,
-          top: 36,
-          width: 20,
-          height: 20,
-          borderRadius: 10,
-          backgroundColor: "rgba(245,184,61,0.9)",
-        }}
-      />
-    </View>
-  );
-}
-
-function SectionHeading({
-  title,
-  action,
-  onAction,
-}: {
-  title: string;
-  action?: string;
-  onAction?: () => void;
-}) {
-  const { t } = useLanguage();
-  return (
-    <View
-      style={{
-        marginBottom: 14,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}
-    >
-      <Text style={{ color: COLORS.primary, fontFamily: FONT_BOLD, fontSize: 17 }}>
-        {t(title)}
-      </Text>
-      {action && onAction ? (
-        <Pressable
-          accessibilityLabel={action}
-          accessibilityRole="button"
-          className="cursor-pointer focus-visible:ring-2 focus-visible:ring-accent"
-          onPress={onAction}
-          style={{ paddingVertical: 5, paddingLeft: 8 }}
-        >
-          <Text style={{ color: COLORS.accent, fontFamily: FONT_SEMIBOLD, fontSize: 12 }}>
-            {t(action)}
-          </Text>
-        </Pressable>
       ) : null}
     </View>
   );
 }
 
-function DashboardModuleCard({
-  module,
-  onNavigate,
-  demoMode,
-}: {
-  module: DashboardModule;
-  onNavigate: (route: Href) => void;
-  demoMode: boolean;
-}) {
-  const { width } = useAppLayout();
-  const { t } = useLanguage();
-  const rates = useAdminDemoStore((state) => state.rates);
-
-  return (
-    <View
-      style={{
-        flex: module.layout === "horizontal" ? 1 : undefined,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        borderRadius: 22,
-        backgroundColor: "#FFFFFF",
-        padding: module.layout === "horizontal" ? 18 : 14,
-      }}
-    >
-      {module.layout !== "horizontal" ? <View style={{ minHeight: 44, flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-        <View
-          style={{
-            width: 38,
-            height: 38,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 13,
-            backgroundColor: module.background,
-          }}
-        >
-          <Ionicons color={module.color} name={module.icon} size={19} />
-        </View>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={{ color: module.color, fontFamily: FONT_BOLD, fontSize: 13 }}>
-            {t(module.title)}
-          </Text>
-          <Text style={{ marginTop: 1, color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 9 }}>
-            {t(module.subtitle)}
-          </Text>
-        </View>
-      </View> : null}
-      {module.layout === "horizontal" ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          {module.options.map((option) => (
-            <View
-              key={option.title}
-              style={{
-                width: width >= 520 ? "48%" : "100%",
-                flexShrink: 0,
-              }}
-            >
-              <Pressable
-                accessibilityLabel={t(option.title)}
-                accessibilityRole="button"
-                className="cursor-pointer hover:opacity-90"
-                onPress={() => onNavigate(option.route)}
-                style={{
-                  minHeight: 108,
-                  justifyContent: "space-between",
-                  borderWidth: 1,
-                  borderColor: "#E2E8F0",
-                  borderRadius: 16,
-                  backgroundColor: "#FFFFFF",
-                  padding: 12,
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <View style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: option.background }}>
-                    <Ionicons color={option.color} name={option.icon} size={18} />
-                  </View>
-                  <Text numberOfLines={2} style={{ flex: 1, minWidth: 0, marginLeft: 9, color: COLORS.primary, fontFamily: FONT_SEMIBOLD, fontSize: 11, lineHeight: 16 }}>
-                    {t(option.title)}
-                  </Text>
-                </View>
-                {option.rateId && demoMode ? (() => {
-                  const rate = rates.find((item) => item.id === option.rateId);
-                  if (!rate) return null;
-                  const current = Number(rate.value);
-                  const previous = Number(rate.previousValue);
-                  const rising = current > previous;
-                  const falling = current < previous;
-                  const trendColor = rising ? "#15803D" : falling ? "#B91C1C" : COLORS.muted;
-                  return (
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-                      <View>
-                        <Text style={{ color: COLORS.ink, fontFamily: FONT_BOLD, fontSize: 16 }}>
-                          ₹{rate.value}
-                          <Text style={{ color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 9 }}> / {rate.unit.replace("per ", "")}</Text>
-                        </Text>
-                        <Text style={{ color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 9 }}>
-                          Prev ₹{rate.previousValue}
-                        </Text>
-                      </View>
-                      <RateSparkline color={trendColor} height={22} values={rate.history} width={66} />
-                    </View>
-                  );
-                })() : option.rateId ? (
-                  <Text style={{ marginTop: 8, color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 10 }}>
-                    {t("Rate unavailable")}
-                  </Text>
-                ) : null}
-              </Pressable>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={{ gap: 8 }}>
-          {module.options.map((option) => (
-            <ModuleOption
-              key={option.title}
-              background={option.background}
-              color={option.color}
-              icon={option.icon}
-              onPress={() => onNavigate(option.route)}
-              subtitle={t(option.subtitle)}
-              title={t(option.title)}
-            />
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function QuickActionCard({
-  action,
-  onPress,
-}: {
-  action: QuickAction;
-  onPress: () => void;
-}) {
-  const { t } = useLanguage();
-  return (
-    <Pressable
-      accessibilityLabel={`${t(action.title)}: ${t(action.subtitle)}`}
-      accessibilityRole="button"
-      className="cursor-pointer hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-accent"
-      onPress={onPress}
-      style={{
-        flex: 1,
-        minWidth: 145,
-        minHeight: 112,
-        justifyContent: "space-between",
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        backgroundColor: COLORS.white,
-        padding: 15,
-      }}
-    >
-      <View
-        style={{
-          width: 36,
-          height: 36,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 12,
-          backgroundColor: action.background,
-        }}
-      >
-        <Ionicons color={action.color} name={action.icon} size={18} />
-      </View>
-      <View style={{ marginTop: 12 }}>
-        <Text style={{ color: COLORS.ink, fontFamily: FONT_SEMIBOLD, fontSize: 12 }}>
-          {t(action.title)}
-        </Text>
-        <Text style={{ marginTop: 2, color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 10 }}>
-          {t(action.subtitle)}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function MarketPromo({ onPress }: { onPress: () => void }) {
-  const { t } = useLanguage();
-  return (
-    <Pressable
-      accessibilityLabel={t("Explore poultry marketplace")}
-      accessibilityRole="button"
-      className="cursor-pointer hover:bg-green-100 focus-visible:ring-2 focus-visible:ring-accent"
-      onPress={onPress}
-      style={{
-        minHeight: 106,
-        flexDirection: "row",
-        alignItems: "center",
-        borderRadius: 20,
-        backgroundColor: "#EEF6EE",
-        padding: 17,
-      }}
-    >
-      <View
-        style={{
-          width: 50,
-          height: 50,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 17,
-          backgroundColor: "#FFFFFF",
-        }}
-      >
-        <Ionicons color={COLORS.forest} name="basket-outline" size={24} />
-      </View>
-      <View style={{ flex: 1, marginLeft: 14 }}>
-        <Text style={{ color: COLORS.forest, fontFamily: FONT_BOLD, fontSize: 14 }}>
-          {t("Everything your farm needs")}
-        </Text>
-        <Text
-          style={{
-            marginTop: 4,
-            color: "#456B50",
-            fontFamily: FONT_REGULAR,
-            fontSize: 11,
-            lineHeight: 17,
-          }}
-        >
-          {t("Chicks, feed and equipment from trusted suppliers.")}
-        </Text>
-      </View>
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 12,
-          backgroundColor: COLORS.white,
-        }}
-      >
-        <Ionicons color={COLORS.forest} name="arrow-forward" size={16} />
-      </View>
-    </Pressable>
-  );
+function pointLabel(date: Date, window: RateWindow, language: AppLanguage) {
+  const locale = language === "hi" ? "hi-IN" : language === "mr" ? "mr-IN" : "en-IN";
+  if (window === "year") return date.toLocaleDateString(locale, { month: "short", year: "numeric" });
+  return date.toLocaleDateString(locale, { day: "numeric", month: "short" });
 }
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, n, language } = useLanguage();
   const { width, sidebarVisible } = useAppLayout();
+  const { colors: theme } = useAppTheme();
   const user = useAuthStore((state) => state.user);
-  const role = user?.role;
-  const name = firstName(user?.name);
+  const rates = useAdminDemoStore((state) => state.rates);
   const demoMode = Boolean(user?.id.startsWith("mock-"));
-  const contentWidth = Math.min(width - 36, 1180);
-  const compact = width < 600;
+  const [windows, setWindows] = useState<Record<string, RateWindow>>({});
+  const [rateDetail, setRateDetail] = useState<RateDetail | null>(null);
+  const pagePadding = width < 480 ? 12 : 18;
+  const rateColumns = width >= 980 ? 3 : 1;
+  const materialsBeside = width >= 860;
+  const contentWidth = Math.min(Math.max(0, width - pagePadding * 2), 1180);
 
-  const actions = useMemo<QuickAction[]>(() => {
-    if (role === "customer") {
-      return [
-        {
-          title: "Browse products",
-          subtitle: "Purchase poultry supplies",
-          icon: "basket-outline",
-          background: "#EAF8EC",
-          color: COLORS.forest,
-          route: "/(tabs)/(marketplace)/feed",
-        },
-        {
-          title: "Book a service",
-          subtitle: "Support for your flock",
-          icon: "medkit-outline",
-          background: "#EAF0FA",
-          color: COLORS.primary,
-          route: "/(tabs)/(services)/booking",
-        },
-        {
-          title: "Wallet",
-          subtitle: "Balance and referrals",
-          icon: "wallet-outline",
-          background: "#FEF3C7",
-          color: "#A16207",
-          route: "/(tabs)/(wallet)",
-        },
-      ];
-    }
-
-    return [
-      {
-        title: "Add farm record",
-        subtitle: "Flock and shed records",
-        icon: "add-circle-outline",
-        background: "#EAF8EC",
-        color: COLORS.forest,
-        route: "/(tabs)/(farm)/records",
-      },
-      {
-        title: "Create bill",
-        subtitle: "Generate and share an invoice",
-        icon: "receipt-outline",
-        background: "#EFF6FF",
-        color: COLORS.primary,
-        route: "/(tabs)/(farm)/billing",
-      },
-      {
-        title: "Add product for sale",
-        subtitle: "Open seller options",
-        icon: "storefront-outline",
-        background: "#F3E8FF",
-        color: "#7E22CE",
-        route: "/(tabs)/(marketplace)/feed?mode=sell",
-      },
-      {
-        title: "Book a test",
-        subtitle: "Water, feed, or flock health",
-        icon: "flask-outline",
-        background: "#E0F2FE",
-        color: "#0369A1",
-        route: "/(tabs)/(services)/booking",
-      },
-      {
-        title: "Schedule vaccination",
-        subtitle: "View vaccination support",
-        icon: "shield-checkmark-outline",
-        background: "#FEF3C7",
-        color: "#A16207",
-        route: "/(tabs)/(services)/booking",
-      },
-    ];
-  }, [role]);
-
-  const modules = useMemo<DashboardModule[]>(() => [
-    {
-      title: "Poultry Mitra",
-      subtitle: "Complete farm management",
-      icon: "home-outline",
-      color: "#0B78C6",
-      background: "#E0F2FE",
-      options: [
-        { title: "Complete Farm Records", subtitle: "Manage sheds and flock activity", icon: "clipboard-outline", color: "#0B78C6", background: "#E0F2FE", route: "/(tabs)/(farm)/records" },
-        { title: "Billing Software", subtitle: "Create and share customer invoices", icon: "receipt-outline", color: "#0B78C6", background: "#E0F2FE", route: "/(tabs)/(farm)/billing" },
-      ],
-    },
-    {
-      title: "Poultry Info & Updates",
-      subtitle: "Market rates and insights",
-      icon: "stats-chart-outline",
-      color: "#B45309",
-      background: "#FEF3C7",
-      layout: "horizontal",
-      options: [
-        { title: "Eggs Rate", subtitle: "Regional market rates", icon: "egg-outline", color: "#B45309", background: "#FEF3C7", route: "/(tabs)/market-updates?category=eggs", rateId: "eggs" },
-        { title: "Culls Birds Rate", subtitle: "Regional market rates", icon: "paw-outline", color: "#B45309", background: "#FEF3C7", route: "/(tabs)/market-updates?category=culls", rateId: "culls" },
-        { title: "Broiler Rates", subtitle: "Regional market rates", icon: "trending-up-outline", color: "#B45309", background: "#FEF3C7", route: "/(tabs)/market-updates?category=broilers", rateId: "broilers" },
-        { title: "Feed Raw Materials Rate", subtitle: "Regional market rates", icon: "nutrition-outline", color: "#B45309", background: "#FEF3C7", route: "/(tabs)/market-updates?category=feed", rateId: "feed" },
-      ],
-    },
-  ], []);
-  const visibleModules =
-    role === "customer" ? modules.filter((module) => module.title !== "Poultry Mitra") : modules;
-
-  if (role === "admin") {
-    return (
-      <AdminDashboard
-        demoMode={Boolean(user?.id.startsWith("mock-"))}
-      />
-    );
+  if (user?.role === "admin") {
+    return <AdminDashboard demoMode={demoMode} />;
   }
 
+  const open = (href: Href) => router.push(href);
+  const detailCard = rateDetail ? RATE_CARDS.find((card) => card.id === rateDetail.id) : undefined;
+  const detailRate = rateDetail ? rates.find((item) => item.id === rateDetail.id) : undefined;
+  const detailSeries = detailRate ? (rateDetail?.range === "month" ? detailRate.month : detailRate.year) : [];
+  const detailDelta = rateDelta(detailSeries);
+  const detailColor = detailSeries.length > 1 ? trendColor(detailSeries, theme.muted) : theme.muted;
+  const tickerItems = useMemo(
+    () => [
+      ...RATE_CARDS.map((card) => {
+        const rate = rates.find((item) => item.id === card.id);
+        const today = Number(rate?.value);
+        const yesterday = Number(rate?.previousValue);
+        return {
+          label: card.title,
+          value: money(Number.isFinite(today) ? today : 0),
+          change: Number.isFinite(today) && Number.isFinite(yesterday) ? Math.round((today - yesterday) * 10) / 10 : 0,
+        };
+      }),
+      ...DEMO_RAW_MATERIALS.map((item, index) => ({
+        label: item.name,
+        value: money(item.price),
+        change: [1, -0.5, 0.5, -1, 1.5, -0.5, 0][index] ?? 0,
+      })),
+    ],
+    [rates],
+  );
+
+  const marketplaceCards = (
+    <View style={{ gap: 10 }}>
+      {(
+        [
+          {
+            title: "Seller",
+            detail: "List a product with a photo and a price",
+            href: "/(tabs)/(marketplace)/feed?mode=sell" as Href,
+            picture: "shop" as PictureName,
+            background: "#F3E8FF",
+            color: "#6B21A8",
+          },
+          {
+            title: "Purchase",
+            detail: "See the photo, details, category, and the dealer phone number",
+            href: "/(tabs)/(marketplace)/feed" as Href,
+            picture: "cart" as PictureName,
+            background: "#E0F2FE",
+            color: "#0C4A6E",
+          },
+        ] as const
+      ).map((card) => (
+        <Pressable
+          key={card.title}
+          accessibilityLabel={t(card.title)}
+          accessibilityRole="button"
+          className="cursor-pointer"
+          onPress={() => open(card.href)}
+          style={{ minHeight: 148, borderRadius: 16, backgroundColor: card.background, padding: 16 }}
+        >
+          <PictureSymbol name={card.picture} size={52} />
+          <Text style={{ marginTop: 12, color: card.color, fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t(card.title)}</Text>
+          <Text style={{ marginTop: 6, color: card.color, fontFamily: "Poppins_500Medium", fontSize: 14, lineHeight: 20 }}>{t(card.detail)}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const servicesGrid = (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 }}>
+      {SERVICES.map((service) => (
+        <View key={service.title} style={{ width: "50%", padding: 5 }}>
+          <Pressable
+            accessibilityLabel={t(service.title)}
+            accessibilityRole="button"
+            className="cursor-pointer"
+            onPress={() => open("/(tabs)/(services)/booking")}
+            style={{
+              minHeight: 140,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: theme.line,
+              backgroundColor: theme.card,
+              padding: 14,
+            }}
+          >
+            <PictureSymbol name={service.icon} size={48} />
+            <Text style={{ marginTop: 10, color: theme.ink, fontFamily: "Poppins_700Bold", fontSize: 15, lineHeight: 21 }}>{t(service.title)}</Text>
+            <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ color: "#15803D", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t("Book now")}</Text>
+              <Ionicons color="#15803D" name="chevron-forward" size={14} style={{ marginLeft: 2 }} />
+            </View>
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  );
+
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: COLORS.cream }}>
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 18,
-          paddingTop: 10,
-          paddingBottom: 28,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ width: "100%", maxWidth: contentWidth, alignSelf: "center" }}>
-          {sidebarVisible ? (
-            <DashboardHeader
-              onNotificationPress={() => router.push("/(tabs)/(services)/booking")}
-            />
-          ) : null}
-
-          <View style={{ marginTop: 22 }}>
-            <WelcomeCard
-              name={name}
-              role={role}
-              onPress={() =>
-                router.push(
-                  role === "customer"
-                    ? "/(tabs)/(marketplace)/feed"
-                    : "/(tabs)/(farm)/records",
-                )
-              }
-            />
-          </View>
-
-          <View style={{ marginTop: 26 }}>
-            <SectionHeading title="Your overview" />
-            <View
-              accessibilityRole="text"
-              style={{
-                minHeight: 112,
-                flexDirection: "row",
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "#E2E8F0",
-                borderRadius: 20,
-                backgroundColor: COLORS.white,
-                padding: 18,
-              }}
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: theme.page }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: pagePadding, paddingTop: sidebarVisible ? 18 : 10, paddingBottom: 28 }}>
+        <View style={{ width: "100%", maxWidth: contentWidth, alignSelf: "center", gap: 22 }}>
+          <View style={{ overflow: "hidden", borderRadius: 22 }}>
+            <ImageBackground
+              contentFit="cover"
+              source={require("../../assets/images/login-hero.jpg")}
+              style={{ width: "100%", minHeight: 240 }}
             >
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 14,
-                  backgroundColor: "#EAF8EC",
-                }}
-              >
-                <Ionicons color={COLORS.forest} name="analytics-outline" size={20} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                {demoMode ? (
-                  <Text style={{ marginBottom: 4, color: "#15803D", fontFamily: FONT_SEMIBOLD, fontSize: 9 }}>
-                    {t("DEMO OVERVIEW · SAMPLE DATA")}
-                  </Text>
-                ) : null}
-                <Text
+              <View style={{ flex: 1, backgroundColor: "rgba(15, 46, 24, 0.72)", padding: 20 }}>
+                <Text style={{ color: "#D9F99D", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{t("Farm Mitra")}</Text>
+                <Text style={{ marginTop: 4, color: "#FFFFFF", fontFamily: "Poppins_700Bold", fontSize: 26 }}>
+                  {t("Hello, {name}").replace("{name}", user?.name?.split(/\s+/)[0] || t("farmer"))}
+                </Text>
+                <View style={{ marginTop: 16, gap: 8 }}>
+                  {FARM_POINTS.map((point) => (
+                    <Text key={point} style={{ color: "#F0FDF4", fontFamily: "Poppins_500Medium", fontSize: 15, lineHeight: 22 }}>
+                      {t(point)}
+                    </Text>
+                  ))}
+                </View>
+                <Pressable
+                  accessibilityLabel={t("Open My Farm")}
+                  accessibilityRole="button"
+                  className="cursor-pointer"
+                  onPress={() => open("/(tabs)/(farm)/records")}
                   style={{
-                    color: COLORS.muted,
-                    fontFamily: FONT_REGULAR,
-                    fontSize: 12,
-                    lineHeight: 19,
+                    minHeight: 48,
+                    marginTop: 18,
+                    alignSelf: "flex-start",
+                    justifyContent: "center",
+                    borderRadius: 14,
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 18,
                   }}
                 >
-                  {demoMode && role === "poultry_owner"
-                    ? t("{sheds} sheds · 12,890 birds tracked · 7,690 eggs recorded today.").replace("{sheds}", String(DEMO_FLOCKS.length))
-                    : demoMode && role === "customer"
-                      ? t("2 sample orders · 1 service booking · Your marketplace activity at a glance.")
-                      : t("Your farm, order, and service details will appear here when available.")}
+                  <Text style={{ color: "#14532D", fontFamily: "Poppins_600SemiBold", fontSize: 15 }}>{t("Open My Farm")}</Text>
+                </Pressable>
+              </View>
+            </ImageBackground>
+          </View>
+
+          <View>
+            <SectionTitle title="Poultry info and updates" subtitle="Today's egg, culls, broiler and feed rates" />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -6 }}>
+              {RATE_CARDS.map((card) => {
+                const rate = rates.find((item) => item.id === card.id);
+                const yesterday = Number(rate?.previousValue);
+                const today = Number(rate?.value);
+                const tomorrow = Number(rate?.nextValue);
+                const monthDelta = rate ? rateDelta(rate.month) : 0;
+                const yearDelta = rate ? rateDelta(rate.year) : 0;
+                return (
+                  <View key={card.id} style={{ width: rateColumns === 3 ? "33.333%" : "100%", paddingHorizontal: 6, paddingBottom: 12 }}>
+                    <View style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 18, backgroundColor: theme.card, padding: 16 }}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                        <PictureSymbol name={card.icon} size={58} />
+                        <Text style={{ flex: 1, minWidth: 0, marginLeft: 12, marginTop: 6, color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 18 }}>
+                          {t(card.title)}
+                        </Text>
+                        {rate ? (
+                          <View style={{ flexDirection: "row", marginLeft: 8, gap: 6 }}>
+                            {(
+                              [
+                                ["month", monthDelta],
+                                ["year", yearDelta],
+                              ] as const
+                            ).map(([range, delta]) => {
+                              const up = delta > 0;
+                              const down = delta < 0;
+                              return (
+                                <Pressable
+                                  key={range}
+                                  accessibilityLabel={`${t(card.title)} ${t(range === "month" ? "Month" : "Year")}`}
+                                  accessibilityRole="button"
+                                  className="cursor-pointer"
+                                  onPress={() => setRateDetail({ id: card.id, range })}
+                                  style={{
+                                    minHeight: 34,
+                                    justifyContent: "center",
+                                    borderRadius: 10,
+                                    backgroundColor: up ? "#DCFCE7" : down ? "#FEE2E2" : "#F1F5F9",
+                                    paddingHorizontal: 12,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: up ? UP : down ? DOWN : theme.muted,
+                                      fontFamily: "Poppins_600SemiBold",
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    {t(range === "month" ? "Month" : "Year")}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                      </View>
+                      {rate ? (
+                        <View style={{ flexDirection: "row", marginTop: 16, gap: 8 }}>
+                          {(
+                            [
+                              ["Yesterday", yesterday, theme.ink],
+                              ["Today", today, quoteColor(today, yesterday, theme.ink)],
+                              ["Tomorrow", tomorrow, quoteColor(tomorrow, today, theme.ink)],
+                            ] as const
+                          ).map(([label, value, color]) => (
+                            <View key={label} style={{ flex: 1, borderRadius: 12, backgroundColor: theme.cardSoft, paddingHorizontal: 10, paddingVertical: 10 }}>
+                              <Text style={{ color: theme.muted, fontFamily: "Poppins_500Medium", fontSize: 12 }}>{t(label)}</Text>
+                              <Text style={{ marginTop: 4, color, fontFamily: "Poppins_700Bold", fontSize: 18 }}>₹{n(money(value))}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={{ marginTop: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 14 }}>{t("Rate unavailable")}</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: materialsBeside ? "row" : "column", alignItems: "flex-start", marginTop: 4, gap: materialsBeside ? 16 : 18 }}>
+              <View style={{ flex: materialsBeside ? 0.95 : undefined, width: materialsBeside ? undefined : "100%", minWidth: 0, gap: 18 }}>
+                <View style={{ overflow: "hidden", borderWidth: 1, borderColor: theme.line, borderRadius: 18, backgroundColor: theme.card }}>
+                  <View style={{ backgroundColor: "#FFF7ED", borderBottomWidth: 1, borderBottomColor: "#FED7AA", paddingHorizontal: 14, paddingVertical: 14 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <PictureSymbol name="sack" size={52} />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={{ color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t("Raw material rate")}</Text>
+                        <Text style={{ marginTop: 2, color: "#9A3412", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
+                          {t("Today's feed and grain prices")}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ padding: 12, gap: 8 }}>
+                    {DEMO_RAW_MATERIALS.map((item) => (
+                      <View
+                        key={item.id}
+                        style={{
+                          minHeight: 58,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          borderRadius: 14,
+                          backgroundColor: theme.cardSoft,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <PictureSymbol name={MATERIAL_PICTURE[item.id] ?? "sack"} size={46} />
+                        <Text style={{ flex: 1, marginLeft: 12, color: theme.ink, fontFamily: "Poppins_600SemiBold", fontSize: 15 }}>{t(item.name)}</Text>
+                        <Text style={{ color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 16 }}>₹{n(item.price)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View>
+                  <SectionTitle title="Services" subtitle="Now it is easy to find services for your poultry farm" />
+                  {servicesGrid}
+                </View>
+              </View>
+
+              <View style={{ flex: materialsBeside ? 1.05 : undefined, width: materialsBeside ? undefined : "100%", minWidth: 0, gap: 18 }}>
+                <View style={{ gap: 10 }}>
+                  {TRENDS.map((trend) => {
+                    const rate = rates.find((item) => item.id === trend.id);
+                    const window = windows[trend.id] ?? "month";
+                    const series = rate ? rateSeries(rate, window) : [];
+                    const color = series.length > 1 ? trendColor(series, theme.muted) : theme.muted;
+                    const points = ratePoints(series, window).map((point) => ({
+                      label: pointLabel(point.at, window, language),
+                      value: point.value,
+                    }));
+                    return (
+                      <View key={trend.id} style={{ overflow: "hidden", borderWidth: 1, borderColor: theme.line, borderRadius: 18, backgroundColor: theme.card, padding: 14 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <PictureSymbol name={trend.icon} size={48} />
+                          <Text style={{ flex: 1, minWidth: 0, marginLeft: 10, color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(trend.title)}</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", marginTop: 10, gap: 6 }}>
+                          {(["days", "month", "year"] as const).map((option) => {
+                            const selected = window === option;
+                            const label = option === "days" ? "Days" : option === "month" ? "Month" : "Year";
+                            return (
+                              <Pressable
+                                key={option}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                                onPress={() => setWindows((current) => ({ ...current, [trend.id]: option }))}
+                                style={{ minHeight: 32, justifyContent: "center", borderRadius: 10, backgroundColor: selected ? theme.chip : theme.cardSoft, paddingHorizontal: 12 }}
+                              >
+                                <Text style={{ color: selected ? theme.primary : theme.muted, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t(label)}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                        <View style={{ marginTop: 8 }}>
+                          <RateChart color={color} formatValue={(value) => n(money(value))} height={92} points={points} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View>
+                  <SectionTitle title="Marketplace" subtitle="Buy and sell poultry products near you" />
+                  {marketplaceCards}
+                </View>
+              </View>
+            </View>
+          </View>
+
+        </View>
+      </ScrollView>
+      <RateTicker items={tickerItems} />
+      <FormModal
+        onClose={() => setRateDetail(null)}
+        title={detailCard ? `${t(detailCard.title)} · ${t(rateDetail?.range === "month" ? "This month" : "This year")}` : "Rate"}
+        visible={Boolean(rateDetail && detailCard && detailSeries.length > 1)}
+      >
+        {detailCard && detailSeries.length > 1 ? (
+          <View style={{ gap: 14 }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <PictureSymbol name={detailCard.icon} size={48} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ color: theme.muted, fontFamily: "Poppins_500Medium", fontSize: 13 }}>
+                  {t(rateDetail?.range === "month" ? "This month" : "This year")}
+                </Text>
+                <Text style={{ marginTop: 2, color: theme.ink, fontFamily: "Poppins_700Bold", fontSize: 20 }}>
+                  ₹{n(money(detailSeries[0]))} → ₹{n(money(detailSeries[detailSeries.length - 1]))}
                 </Text>
               </View>
+              <Text style={{ color: detailColor, fontFamily: "Poppins_700Bold", fontSize: 18 }}>
+                {detailDelta > 0 ? "+" : ""}₹{n(money(detailDelta))}
+              </Text>
             </View>
-          </View>
-
-          <View
-            style={{
-              marginTop: 26,
-              flexDirection: width >= 760 ? "row" : "column",
-              alignItems: "flex-start",
-              gap: 18,
-            }}
-          >
-            <View style={{ width: width >= 760 ? "40%" : "100%" }}>
-              <SectionHeading
-                title="Quick actions"
-              />
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {actions.map((action) => (
-                  <QuickActionCard
-                    key={action.title}
-                    action={action}
-                    onPress={() => router.push(action.route)}
-                  />
-                ))}
-              </View>
-            </View>
-            <View style={{ flex: 1, width: width >= 760 ? undefined : "100%" }}>
-              <SectionHeading title="Poultry Info & Updates" />
-              {visibleModules
-                .filter((module) => module.layout === "horizontal")
-                .map((module) => (
-                  <DashboardModuleCard
-                    key={module.title}
-                    module={module}
-                    demoMode={Boolean(user?.id.startsWith("mock-"))}
-                    onNavigate={(route) => router.push(route)}
-                  />
-                ))}
-            </View>
-          </View>
-
-          <View style={{ marginTop: 26 }}>
-            <SectionHeading
-              action="Explore"
-              onAction={() => router.push("/(tabs)/(marketplace)/feed")}
-              title="For your farm"
-            />
-            <MarketPromo onPress={() => router.push("/(tabs)/(marketplace)/feed")} />
-          </View>
-
-          <View
-            style={{
-              marginTop: 24,
-              flexDirection: compact ? "column" : "row",
-              alignItems: compact ? "flex-start" : "center",
-              justifyContent: "space-between",
-              gap: 8,
-              paddingHorizontal: 2,
-            }}
-          >
-            <Text style={{ color: COLORS.muted, fontFamily: FONT_REGULAR, fontSize: 10 }}>
-              {t("Poultech Solutions · Growing together")}
-            </Text>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons color={COLORS.accent} name="shield-checkmark-outline" size={13} />
-              <Text
-                style={{
-                  marginLeft: 5,
-                  color: COLORS.muted,
-                  fontFamily: FONT_REGULAR,
-                  fontSize: 10,
-                }}
-              >
-                {t("Your farm data stays secure")}
+              <Ionicons color={detailColor} name={detailDelta >= 0 ? "trending-up" : "trending-down"} size={18} />
+              <Text style={{ marginLeft: 6, color: detailColor, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+                {detailDelta >= 0 ? t("Price increased") : t("Price decreased")}
               </Text>
             </View>
           </View>
-        </View>
-      </ScrollView>
+        ) : null}
+      </FormModal>
     </SafeAreaView>
   );
 }

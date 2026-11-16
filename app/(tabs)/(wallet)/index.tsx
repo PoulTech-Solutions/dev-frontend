@@ -14,6 +14,7 @@ import { useAuthStore } from "../../../store/useAuthStore";
 import { useWalletStore } from "../../../store/useWalletStore";
 import { DEMO_WALLET } from "../../../utils/demoData";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 
 function formatCurrency(value: number | null, language: string) {
@@ -26,6 +27,7 @@ function formatCurrency(value: number | null, language: string) {
 
 export default function WalletScreen() {
   const { width } = useAppLayout();
+  const { colors } = useAppTheme();
   const { language, t } = useLanguage();
   const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
   const balance = useWalletStore((state) => state.balance);
@@ -49,7 +51,7 @@ export default function WalletScreen() {
   };
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}

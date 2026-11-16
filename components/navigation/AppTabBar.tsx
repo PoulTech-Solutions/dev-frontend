@@ -2,15 +2,32 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Alert, Modal, Pressable, Text, View, useWindowDimensions } from "react-native";
-import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SIDEBAR_BREAKPOINT, SIDEBAR_WIDTH, useAppLayout } from "../../hooks/useAppLayout";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store/useAuthStore";
-import { SIDEBAR_BREAKPOINT, SIDEBAR_WIDTH } from "../../hooks/useAppLayout";
+import { useShellStore } from "../../store/useShellStore";
+import { useSubscriptionStore } from "../../store/useSubscriptionStore";
+import { planById } from "../../utils/subscriptionPlans";
 import { useLanguage } from "../../utils/i18n";
 
 const ACTIVE = "#16A34A";
 const INACTIVE = "#64748B";
+
+function UserAvatar({ name, photoUri, size = 38 }: { name?: string; photoUri?: string; size?: number }) {
+  if (photoUri) {
+    return <Image contentFit="cover" source={{ uri: photoUri }} style={{ width: size, height: size, borderRadius: 12 }} />;
+  }
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#E7EFE5" }}>
+      <Text style={{ color: "#14532D", fontFamily: "Poppins_700Bold", fontSize: size * 0.37 }}>
+        {(name ?? "?").slice(0, 1).toUpperCase()}
+      </Text>
+    </View>
+  );
+}
 
 const APP_ROUTES = [
   { name: "Home", route: "/(tabs)/dashboard", icon: "grid-outline" },
@@ -27,7 +44,17 @@ export function AppMobileHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const user = useAuthStore((store) => store.user);
   const signOut = useAuthStore((store) => store.signOut);
+  const setSidebarOpen = useShellStore((state) => state.setSidebarOpen);
+  const planId = useSubscriptionStore((state) => state.planId);
+  const hydratePlan = useSubscriptionStore((state) => state.hydrate);
   const { t } = useLanguage();
+  const { colors, isDark } = useAppTheme();
+  const wide = width >= SIDEBAR_BREAKPOINT;
+  const plan = planById(planId);
+
+  useEffect(() => {
+    if (user?.id) void hydratePlan(user.id);
+  }, [hydratePlan, user?.id]);
 
   const handleLogout = async () => {
     try {
@@ -49,9 +76,9 @@ export function AppMobileHeader() {
           alignItems: "center",
           paddingTop: insets.top,
           paddingHorizontal: 18,
-          backgroundColor: "#FFFFFF",
+          backgroundColor: colors.headerBg,
           borderBottomWidth: 1,
-          borderBottomColor: "#E2E8F0",
+          borderBottomColor: colors.line,
         }}
       >
         <Image
@@ -61,10 +88,10 @@ export function AppMobileHeader() {
           style={{ width: 38, height: 38, borderRadius: 12 }}
         />
         <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 15 }}>
+          <Text style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 15 }}>
             Poultech Solutions
           </Text>
-          <Text style={{ marginTop: 1, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>
+          <Text style={{ marginTop: 1, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>
             Farm & marketplace
           </Text>
         </View>
@@ -87,11 +114,11 @@ export function AppMobileHeader() {
           <Ionicons color="#B91C1C" name="log-out-outline" size={19} />
         </Pressable>
         <Pressable
-          accessibilityLabel={t(menuOpen ? "Close navigation menu" : "Open navigation menu")}
+          accessibilityLabel={t(wide ? "Open sidebar" : menuOpen ? "Close navigation menu" : "Open navigation menu")}
           accessibilityRole="button"
           accessibilityState={{ expanded: menuOpen }}
           className="cursor-pointer hover:bg-slate-100"
-          onPress={() => setMenuOpen((open) => !open)}
+          onPress={() => (wide ? setSidebarOpen(true) : setMenuOpen((open) => !open))}
           style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, marginLeft: 6 }}
         >
           <Ionicons color="#0B2A5B" name={menuOpen ? "close" : "menu"} size={25} />
@@ -178,17 +205,13 @@ export function AppMobileHeader() {
               }}
               style={{ minHeight: 58, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 10 }}
             >
-              <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#E7EFE5" }}>
-                <Text style={{ color: "#14532D", fontFamily: "Poppins_700Bold", fontSize: 14 }}>
-                  {user?.name?.slice(0, 1).toUpperCase() ?? "?"}
-                </Text>
-              </View>
+              <UserAvatar name={user?.name} photoUri={user?.photoUri} />
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text numberOfLines={1} style={{ color: "#334155", fontFamily: "Poppins_500Medium", fontSize: 12 }}>
+                <Text numberOfLines={1} style={{ color: isDark ? colors.ink : "#334155", fontFamily: "Poppins_500Medium", fontSize: 12 }}>
                   {user?.name ?? t("Your profile")}
                 </Text>
-                <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>
-                  {t("View profile")}
+                <Text style={{ color: plan.color, fontFamily: "Poppins_600SemiBold", fontSize: 10 }}>
+                  {t(plan.name)} · {t("View profile")}
                 </Text>
               </View>
               <Ionicons color="#64748B" name="chevron-forward" size={17} />
@@ -201,13 +224,21 @@ export function AppMobileHeader() {
 }
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuthStore((store) => store.user);
   const signOut = useAuthStore((store) => store.signOut);
+  const planId = useSubscriptionStore((state) => state.planId);
+  const hydratePlan = useSubscriptionStore((state) => state.hydrate);
   const { t } = useLanguage();
-  const sidebarVisible = viewportWidth >= SIDEBAR_BREAKPOINT;
+  const { colors, isDark } = useAppTheme();
+  const { sidebarVisible } = useAppLayout();
+  const setSidebarOpen = useShellStore((state) => state.setSidebarOpen);
+  const plan = planById(planId);
+
+  useEffect(() => {
+    if (user?.id) void hydratePlan(user.id);
+  }, [hydratePlan, user?.id]);
 
   const handleLogout = async () => {
     try {
@@ -303,21 +334,28 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
         style={{
           width: SIDEBAR_WIDTH,
           height: "100%",
-          backgroundColor: "#FFFFFF",
+          backgroundColor: colors.card,
           borderRightWidth: 1,
-          borderRightColor: "#E2E8F0",
+          borderRightColor: colors.line,
           paddingTop: Math.max(insets.top, 16),
           paddingBottom: Math.max(insets.bottom, 14),
           paddingHorizontal: 16,
         }}
       >
-        <View
+        <Pressable
+          accessibilityHint={t("Click the logo or name to close the menu")}
+          accessibilityLabel={t("Close sidebar")}
+          accessibilityRole="button"
+          className="cursor-pointer"
+          onPress={() => setSidebarOpen(false)}
           style={{
             minHeight: 72,
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "flex-start",
             marginBottom: 24,
+            borderRadius: 14,
+            paddingVertical: 4,
+            paddingRight: 4,
           }}
         >
           <Image
@@ -327,14 +365,14 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             style={{ width: 44, height: 44, borderRadius: 13 }}
           />
           <View style={{ flex: 1, minWidth: 0, marginLeft: 11 }}>
-            <Text numberOfLines={1} style={{ color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 15 }}>
+            <Text numberOfLines={1} style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 15 }}>
               Poultech Solutions
             </Text>
-            <Text numberOfLines={1} style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>
-              Farm & marketplace
+            <Text numberOfLines={1} style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>
+              {t("Click to close menu")}
             </Text>
           </View>
-        </View>
+        </Pressable>
 
         {renderTabs(true)}
 
@@ -344,7 +382,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             flexDirection: "row",
             alignItems: "center",
             borderTopWidth: 1,
-            borderTopColor: "#F1F5F9",
+            borderTopColor: colors.line,
             paddingTop: 12,
             gap: 8,
           }}
@@ -354,20 +392,16 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             accessibilityRole="button"
             className="cursor-pointer hover:bg-slate-100"
             onPress={() => router.push("/(tabs)/profile")}
-            style={{ flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", borderRadius: 14, backgroundColor: "#F8FAFC", paddingHorizontal: 8 }}
+            style={{ flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", borderRadius: 14, backgroundColor: colors.cardSoft, paddingHorizontal: 8 }}
           >
-            <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#E7EFE5" }}>
-              <Text style={{ color: "#14532D", fontFamily: "Poppins_700Bold", fontSize: 14 }}>
-                {user?.name?.slice(0, 1).toUpperCase() ?? "?"}
-              </Text>
-            </View>
+            <UserAvatar name={user?.name} photoUri={user?.photoUri} />
             <View style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
-              <Text numberOfLines={1} style={{ color: "#334155", fontFamily: "Poppins_500Medium", fontSize: 11 }}>
+              <Text numberOfLines={1} style={{ color: isDark ? colors.ink : "#334155", fontFamily: "Poppins_500Medium", fontSize: 11 }}>
                 {user?.name ?? t("Your profile")}
               </Text>
-              <Text style={{ marginTop: 1, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 9 }}>
-                {t("View profile")}
-              </Text>
+              <View style={{ marginTop: 3, alignSelf: "flex-start", borderRadius: 8, backgroundColor: plan.background, paddingHorizontal: 7, paddingVertical: 2 }}>
+                <Text style={{ color: plan.color, fontFamily: "Poppins_600SemiBold", fontSize: 9 }}>{t(plan.name)}</Text>
+              </View>
             </View>
           </Pressable>
           <Pressable

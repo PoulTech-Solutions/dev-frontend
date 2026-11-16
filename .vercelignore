@@ -1,0 +1,7 @@
+deploy
+Dockerfile
+docker-compose.yml
+nginx.conf
+node_modules
+.expo
+.git

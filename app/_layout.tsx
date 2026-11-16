@@ -12,6 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
+import { useThemeStore } from "../store/useThemeStore";
 import { LanguageProvider } from "../utils/i18n";
 
 SplashScreen.setOptions({ duration: 450, fade: true });
@@ -30,12 +31,17 @@ export default function RootLayout() {
   });
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
+  const appearance = useThemeStore((state) => state.appearance);
+  const hydrateTheme = useThemeStore((state) => state.hydrate);
 
   useEffect(() => {
     void hydrate().catch((error: unknown) => {
       console.error("Could not hydrate the saved auth session.", error);
     });
-  }, [hydrate]);
+    void hydrateTheme().catch((error: unknown) => {
+      console.error("Could not load the saved appearance.", error);
+    });
+  }, [hydrate, hydrateTheme]);
 
   useEffect(() => {
     if (fontError) console.error("Could not load Poppins fonts.", fontError);
@@ -56,11 +62,12 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-        <StatusBar style="light" />
+        <StatusBar style={appearance === "dark" ? "light" : "dark"} />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="company" />
         </Stack>
       </LanguageProvider>
     </QueryClientProvider>
