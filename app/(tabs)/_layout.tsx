@@ -1,12 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
+import { useEffect } from "react";
 import { AppMobileHeader, AppTabBar } from "../../components/navigation/AppTabBar";
 import { useAppLayout } from "../../hooks/useAppLayout";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useLanguage } from "../../utils/i18n";
 
 export default function TabLayout() {
+  const router = useRouter();
   const { t } = useLanguage();
   const { sidebarVisible: showSidebar } = useAppLayout();
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    if (isHydrated && !isAuthenticated) {
+      router.replace("/(auth)/login");
+    }
+  }, [isAuthenticated, isHydrated, router]);
 
   return (
     <Tabs

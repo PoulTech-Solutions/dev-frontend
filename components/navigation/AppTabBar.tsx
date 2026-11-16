@@ -109,9 +109,21 @@ export function AppMobileHeader() {
           accessibilityRole="button"
           className="cursor-pointer hover:bg-red-100"
           onPress={() => void handleLogout()}
-          style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#FEF2F2", marginLeft: 4 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 12,
+            backgroundColor: "#FEF2F2",
+            marginLeft: 4,
+          }}
         >
           <Ionicons color="#B91C1C" name="log-out-outline" size={19} />
+          <Text style={{ color: "#B91C1C", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+            {t("Log out")}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityLabel={t(wide ? "Open sidebar" : menuOpen ? "Close navigation menu" : "Open navigation menu")}
@@ -409,9 +421,20 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             accessibilityRole="button"
             className="cursor-pointer hover:bg-red-100"
             onPress={() => void handleLogout()}
-            style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#FEF2F2" }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderRadius: 13,
+              backgroundColor: "#FEF2F2",
+            }}
           >
             <Ionicons color="#B91C1C" name="log-out-outline" size={20} />
+            <Text style={{ color: "#B91C1C", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+              {t("Log out")}
+            </Text>
           </Pressable>
         </View>
       </View>

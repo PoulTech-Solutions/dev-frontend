@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
-import { useState } from "react";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,11 +13,26 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { LanguagePicker } from "../../components/ui/LanguagePicker";
+import {
+  getAuthErrorMessage,
+  getSignupFailureMessage,
+  getOtpFailureMessage,
+  isMockAuthEnabled,
+  useResendOtp,
+  useSignup,
+  useVerifySignupEmail,
+} from "../../hooks/useAuth";
+import { useOtpResendCooldown } from "../../hooks/useOtpResendCooldown";
 import { useAuthStore } from "../../store/useAuthStore";
 import type { AuthUser, SelfSelectedRole } from "../../store/useAuthStore";
 import { useLanguage } from "../../utils/i18n";
-
-const useMockAuth = process.env.EXPO_PUBLIC_USE_MOCK_AUTH === "true";
+import {
+  BACKEND_PASSWORD_HINT,
+  BACKEND_PASSWORD_REGEX,
+  INDIAN_MOBILE_HINT,
+  isValidIndianMobile,
+  loginPathAfterSignup,
+} from "../../utils/authValidation";
 
 const ROLES: {
   id: SelfSelectedRole;
@@ -46,13 +61,15 @@ function ProfileField({
   placeholder,
   keyboardType = "default",
   autoComplete,
+  secureTextEntry,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
   keyboardType?: "default" | "email-address" | "phone-pad";
-  autoComplete?: "name" | "email" | "tel" | "off";
+  autoComplete?: "name" | "email" | "tel" | "off" | "new-password";
+  secureTextEntry?: boolean;
 }) {
   return (
     <View>
@@ -66,6 +83,7 @@ function ProfileField({
         autoCorrect={keyboardType !== "email-address"}
         keyboardType={keyboardType}
         onChangeText={onChangeText}
+        secureTextEntry={secureTextEntry}
         placeholder={placeholder}
         placeholderTextColor="#94A3B8"
         style={{
@@ -88,14 +106,24 @@ function ProfileField({
 export default function RegisterScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const routeParams = useLocalSearchParams<{ email?: string; from?: string }>();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const completeProfile = useAuthStore((state) => state.completeProfile);
   const completeSignIn = useAuthStore((state) => state.completeSignIn);
+  const signupMutation = useSignup();
+  const verifySignup = useVerifySignupEmail();
+  const resendOtp = useResendOtp();
+  const signupResendCooldown = useOtpResendCooldown();
   const [signupStep, setSignupStep] = useState<"details" | "verification">("details");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otpSessionId, setOtpSessionId] = useState("");
   const [farmName, setFarmName] = useState(user?.farmName ?? "");
   const [city, setCity] = useState(user?.city ?? "");
   const [state, setState] = useState(user?.state ?? "");
@@ -103,6 +131,20 @@ export default function RegisterScreen() {
   const [selectedRole, setSelectedRole] = useState<SelfSelectedRole>("poultry_owner");
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const prefill = typeof routeParams.email === "string" ? routeParams.email.trim().toLowerCase() : "";
+    if (prefill && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prefill)) {
+      setEmail(prefill);
+    }
+    if (routeParams.from === "login") {
+      setMessage(
+        prefill
+          ? `No account for ${prefill} yet—or the password was wrong. Register below, then sign in with the same email and password.`
+          : "Register below, then sign in with the same email and password.",
+      );
+    }
+  }, [routeParams.email, routeParams.from]);
 
   const finishProfile = async () => {
     setMessage("");
@@ -114,6 +156,14 @@ export default function RegisterScreen() {
       setMessage("Enter a valid email address.");
       return;
     }
+    if (!phone.trim()) {
+      setMessage("Phone number is required.");
+      return;
+    }
+    if (!isValidIndianMobile(phone)) {
+      setMessage(INDIAN_MOBILE_HINT);
+      return;
+    }
     if (selectedRole === "poultry_owner" && !farmName.trim()) {
       setMessage("Enter your farm name to continue.");
       return;
@@ -121,6 +171,24 @@ export default function RegisterScreen() {
 
     setIsSaving(true);
     try {
+      const parts = name.trim().split(/\s+/);
+      const firstName = parts[0] ?? "";
+      const lastName = parts.slice(1).join(" ") || "-";
+      if (isAuthenticated && !isMockAuthEnabled) {
+        const { patchMyProfile } = await import("../../services/authService");
+        const updated = await patchMyProfile({
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone.replace(/\D/g, ""),
+          village_city: city.trim() || undefined,
+          state: state.trim() || undefined,
+          region: selectedRole === "poultry_owner" ? farmName.trim() || undefined : undefined,
+        });
+        const token = useAuthStore.getState().accessToken;
+        if (token) {
+          await completeSignIn(updated, token);
+        }
+      }
       await completeProfile({
         name,
         email,
@@ -142,20 +210,62 @@ export default function RegisterScreen() {
 
   const requestOtp = () => {
     setMessage("");
-    if (!name.trim()) {
-      setMessage("Enter your full name.");
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    if (fn.length < 2) {
+      setMessage("First name must be at least 2 characters.");
+      return;
+    }
+    if (ln.length < 1) {
+      setMessage("Enter your last name.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setMessage("Enter a valid email address.");
+      setMessage(
+        "Enter a valid email address you can access (for example, name@example.com).",
+      );
       return;
     }
-    if (useMockAuth) {
-      setMessage("Mock verification code: 123456");
-    } else {
-      setMessage("Email OTP delivery is not connected yet.");
+    if (!phone.trim()) {
+      setMessage("Phone number is required.");
+      return;
     }
-    setSignupStep("verification");
+    if (!isValidIndianMobile(phone)) {
+      setMessage(INDIAN_MOBILE_HINT);
+      return;
+    }
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (!BACKEND_PASSWORD_REGEX.test(password)) {
+      setMessage(BACKEND_PASSWORD_HINT);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+    setIsSaving(true);
+    void signupMutation
+      .mutateAsync({
+        email: email.trim().toLowerCase(),
+        password,
+        confirm_password: confirmPassword,
+        first_name: fn,
+        last_name: ln,
+        phone: phone.replace(/\D/g, ""),
+      })
+      .then((challenge) => {
+        setOtpSessionId(challenge.otp_session_id);
+        setSignupStep("verification");
+        signupResendCooldown.startFromChallenge(challenge.resend_after);
+        setMessage(challenge.hint ?? `Enter the code sent to ${challenge.masked_destination ?? "your email"}.`);
+      })
+      .catch((error) => {
+        setMessage(getSignupFailureMessage(error));
+      })
+      .finally(() => setIsSaving(false));
   };
 
   const verifyOtp = () => {
@@ -164,33 +274,47 @@ export default function RegisterScreen() {
       setMessage("Enter the 6-digit verification code.");
       return;
     }
-    if (!useMockAuth) {
-      setMessage("Email OTP verification is not connected yet. No account has been created.");
-      return;
-    }
-    if (otp !== "123456") {
-      setMessage("Invalid code. Try 123456 in mock mode.");
-      return;
-    }
-
-    const newUser: AuthUser = {
-      id: `mock-${email.trim().toLowerCase()}`,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      role: null,
-    };
-    setMessage("");
     setIsSaving(true);
-    void completeSignIn(newUser, `mock-token-${newUser.id}`)
-      .catch((error: unknown) => {
-        setMessage(
-          error instanceof Error ? error.message : "Could not create your account. Please try again.",
-        );
+    void verifySignup
+      .mutateAsync({ otp_session_id: otpSessionId, otp })
+      .then((result) => {
+        if (isMockAuthEnabled) {
+          const newUser: AuthUser = {
+            id: `mock-${email.trim().toLowerCase()}`,
+            name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+            email: email.trim().toLowerCase(),
+            role: null,
+          };
+          return completeSignIn(newUser, `mock-token-${newUser.id}`).then(() => {
+            router.replace("/(auth)/register");
+          });
+        }
+        setMessage(result.message);
+        router.replace(loginPathAfterSignup(email));
+        return undefined;
+      })
+      .catch((error) => {
+        setMessage(getOtpFailureMessage(error));
       })
       .finally(() => setIsSaving(false));
   };
 
-  const isProfileSetup = Boolean(isAuthenticated && user && !user.role);
+  const resendSignupOtp = () => {
+    if (!otpSessionId || !signupResendCooldown.canResend) return;
+    setIsSaving(true);
+    void resendOtp
+      .mutateAsync({ otp_session_id: otpSessionId, purpose: "signup" })
+      .then((challenge) => {
+        signupResendCooldown.startFromChallenge(challenge.resend_after);
+        setMessage(challenge.hint ?? "A new code was sent to your email.");
+      })
+      .catch((error) => setMessage(getOtpFailureMessage(error)))
+      .finally(() => setIsSaving(false));
+  };
+
+  const isProfileSetup = Boolean(
+    isAuthenticated && user && user.isProfileComplete === false,
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
@@ -314,7 +438,9 @@ export default function RegisterScreen() {
                 </View>
 
                 <Text style={{ marginTop: 14, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
-                  {t("Profile details are saved to this device until the backend profile endpoint is available.")}
+                  {isAuthenticated && !isMockAuthEnabled
+                    ? t("Add your phone and details to finish your account (required for Google and email sign-in).")
+                    : t("Profile details are saved to this device until the backend profile endpoint is available.")}
                 </Text>
                 <View style={{ marginTop: 18 }}>
                   <Button
@@ -328,16 +454,21 @@ export default function RegisterScreen() {
             ) : signupStep === "details" ? (
               <>
                 <View style={{ marginTop: 24, gap: 16 }}>
-                  <ProfileField autoComplete="name" label={t("Full name")} onChangeText={setName} placeholder={t("Your name")} value={name} />
+                  <ProfileField autoComplete="name" label={t("First name")} onChangeText={setFirstName} placeholder={t("First name")} value={firstName} />
+                  <ProfileField autoComplete="name" label={t("Last name")} onChangeText={setLastName} placeholder={t("Last name")} value={lastName} />
                   <ProfileField autoComplete="email" keyboardType="email-address" label={t("Email address")} onChangeText={setEmail} placeholder={t("you@example.com")} value={email} />
+                  <ProfileField autoComplete="tel" keyboardType="phone-pad" label={t("Phone number")} onChangeText={setPhone} placeholder={t("10-digit Indian mobile")} value={phone} />
+                  <ProfileField autoComplete="new-password" label={t("Password")} onChangeText={setPassword} placeholder={t("At least 8 characters")} secureTextEntry value={password} />
+                  <ProfileField autoComplete="new-password" label={t("Confirm password")} onChangeText={setConfirmPassword} placeholder={t("Re-enter password")} secureTextEntry value={confirmPassword} />
                 </View>
                 <Text style={{ marginTop: 14, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
-                  {t("After email verification, you’ll choose a role and complete your profile.")}
+                  {t("We’ll email a verification code. After that, sign in with your password.")}
                 </Text>
                 <View style={{ marginTop: 18 }}>
                   <Button
                     accessibilityLabel={t("Continue signup")}
                     label={t("Continue")}
+                    loading={signupMutation.isPending || isSaving}
                     onPress={requestOtp}
                   />
                 </View>
@@ -370,14 +501,35 @@ export default function RegisterScreen() {
                     accessibilityLabel={t("Verify email")}
                     disabled={isSaving}
                     label={t("Verify email")}
-                    loading={isSaving}
+                    loading={isSaving || verifySignup.isPending}
                     onPress={verifyOtp}
                   />
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  className="mt-3 self-center"
+                  disabled={isSaving || !otpSessionId || !signupResendCooldown.canResend || resendOtp.isPending}
+                  onPress={resendSignupOtp}
+                >
+                  <Text
+                    style={{
+                      color: signupResendCooldown.canResend ? "#16A34A" : "#94A3B8",
+                      fontFamily: "Poppins_600SemiBold",
+                      fontSize: 12,
+                    }}
+                  >
+                    {signupResendCooldown.canResend
+                      ? t("Resend code")
+                      : t("Resend code in {seconds}s").replace(
+                          "{seconds}",
+                          String(signupResendCooldown.secondsLeft),
+                        )}
+                  </Text>
+                </Pressable>
                 <Text style={{ marginTop: 12, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17, textAlign: "center" }}>
-                  {useMockAuth
+                  {isMockAuthEnabled
                     ? t("Development mode: use 123456 to continue to role and profile setup.")
-                    : t("Email OTP delivery and verification will be enabled when the backend endpoint is available.")}
+                    : t("Check your inbox for the 6-digit code.")}
                 </Text>
               </View>
             )}
@@ -387,9 +539,11 @@ export default function RegisterScreen() {
                 accessibilityLiveRegion="polite"
                 style={{
                   marginTop: 14,
-                  color: useMockAuth && message.startsWith("Mock verification")
+                  color: isMockAuthEnabled && message.includes("123456")
                     ? "#166534"
-                    : "#B91C1C",
+                    : message.includes("confirmed") || message.includes("sent")
+                      ? "#166534"
+                      : "#B91C1C",
                   fontFamily: "Poppins_400Regular",
                   fontSize: 12,
                   lineHeight: 18,

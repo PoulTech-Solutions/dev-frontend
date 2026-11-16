@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { create } from "zustand";
 
 export type UserRole = "admin" | "customer" | "poultry_owner";
@@ -12,6 +13,8 @@ export interface AuthUser {
   state?: string;
   photoUri?: string;
   role?: UserRole | null;
+  isProfileComplete?: boolean;
+  mustVerifyEmail?: boolean;
 }
 
 export type SelfSelectedRole = Exclude<UserRole, "admin">;
@@ -41,6 +44,7 @@ interface AuthState {
     role: UserRole;
   }) => Promise<void>;
   signOut: () => Promise<void>;
+  setAccessToken: (accessToken: string) => Promise<void>;
 }
 
 const initialSession = {
@@ -55,12 +59,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isRemembered: false,
   hydrate: async () => {
     try {
-      const { loadAuthSession } = await import("../services/authStorage");
+      const { loadAuthSession, clearAuthSession } = await import("../services/authStorage");
       const session = await loadAuthSession();
+      let accessToken = session.accessToken;
+      const remembered = Boolean(session.user);
+
+      if (Platform.OS === "web" && session.user && !accessToken) {
+        try {
+          const { refreshAccessToken } = await import("../services/authService");
+          const tokens = await refreshAccessToken();
+          accessToken = tokens.access_token;
+        } catch {
+          await clearAuthSession();
+          set({ ...initialSession, isHydrated: true, isRemembered: false });
+          return;
+        }
+      }
+
       set({
-        ...session,
-        isAuthenticated: Boolean(session.accessToken && session.user),
-        isRemembered: Boolean(session.accessToken && session.user),
+        user: session.user,
+        accessToken,
+        isAuthenticated: Boolean(accessToken && session.user),
+        isRemembered: remembered,
         isHydrated: true,
       });
     } catch (error) {
@@ -71,12 +91,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: async (user) => {
     const state = get();
     const { saveAuthSession } = await import("../services/authStorage");
-    await saveAuthSession({ user, accessToken: state.accessToken });
+    await saveAuthSession(
+      { user, accessToken: state.accessToken },
+      { persist: state.isRemembered },
+    );
     set({ user });
   },
   completeSignIn: async (user, accessToken, rememberMe = true) => {
     const { clearAuthSession, saveAuthSession } = await import("../services/authStorage");
-    if (rememberMe) await saveAuthSession({ user, accessToken });
+    if (rememberMe) await saveAuthSession({ user, accessToken }, { persist: true });
     else await clearAuthSession();
     set({
       user,
@@ -92,7 +115,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = { ...currentUser, role };
     const { saveAuthSession } = await import("../services/authStorage");
     if (get().isRemembered) {
-      await saveAuthSession({ user, accessToken: get().accessToken });
+      await saveAuthSession(
+        { user, accessToken: get().accessToken },
+        { persist: true },
+      );
     }
     set({ user });
   },
@@ -113,13 +139,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     };
     const { saveAuthSession } = await import("../services/authStorage");
     if (get().isRemembered) {
-      await saveAuthSession({ user, accessToken: get().accessToken });
+      await saveAuthSession(
+        { user, accessToken: get().accessToken },
+        { persist: true },
+      );
     }
     set({ user });
   },
   signOut: async () => {
     const { clearAuthSession } = await import("../services/authStorage");
+    const token = get().accessToken;
+    if (token) {
+      try {
+        const { logoutSession } = await import("../services/authService");
+        await logoutSession();
+      } catch {
+        // Local sign-out still proceeds if the server session is already gone.
+      }
+    }
     await clearAuthSession();
     set({ ...initialSession, isHydrated: true, isRemembered: false });
+  },
+  setAccessToken: async (accessToken) => {
+    const { saveAuthSession } = await import("../services/authStorage");
+    const state = get();
+    if (state.isRemembered && state.user) {
+      await saveAuthSession({ user: state.user, accessToken }, { persist: true });
+    }
+    set({ accessToken, isAuthenticated: Boolean(accessToken && state.user) });
   },
 }));

@@ -1,18 +1,27 @@
+import * as AuthSession from "expo-auth-session";
 import { ResponseType } from "expo-auth-session";
 import { useIdTokenAuthRequest } from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform } from "react-native";
+import {
+  GOOGLE_WEB_CLIENT_FALLBACK,
+  googleAuthEnv,
+  googleOriginSetupMessage,
+} from "../config/googleAuth";
 import { isMockAuthEnabled, useGoogleLogin } from "./useAuth";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const fallbackClientId = "google-client-not-configured.apps.googleusercontent.com";
+function googleWebRedirectUri(): string | undefined {
+  if (Platform.OS !== "web" || typeof window === "undefined") return undefined;
+  if (googleAuthEnv.webRedirectUri) return googleAuthEnv.webRedirectUri;
+  return AuthSession.makeRedirectUri({ path: "" }).replace(/\/$/, "");
+}
 
 export function useGoogleAuth() {
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const { webClientId, androidClientId, iosClientId } = googleAuthEnv;
+  const redirectUri = useMemo(() => googleWebRedirectUri(), []);
   const hasClientId =
     Platform.OS === "web"
       ? Boolean(webClientId)
@@ -20,12 +29,14 @@ export function useGoogleAuth() {
         ? Boolean(androidClientId)
         : Boolean(iosClientId);
   const [request, , promptAsync] = useIdTokenAuthRequest({
-    clientId: fallbackClientId,
-    webClientId: webClientId || fallbackClientId,
-    androidClientId: androidClientId || fallbackClientId,
-    iosClientId: iosClientId || fallbackClientId,
+    clientId: GOOGLE_WEB_CLIENT_FALLBACK,
+    webClientId: webClientId || GOOGLE_WEB_CLIENT_FALLBACK,
+    androidClientId: androidClientId || GOOGLE_WEB_CLIENT_FALLBACK,
+    iosClientId: iosClientId || GOOGLE_WEB_CLIENT_FALLBACK,
     responseType: ResponseType.IdToken,
     scopes: ["openid", "profile", "email"],
+    redirectUri,
+    extraParams: { prompt: "select_account" },
   });
   const googleLogin = useGoogleLogin();
   const [isPrompting, setIsPrompting] = useState(false);
@@ -40,11 +51,17 @@ export function useGoogleAuth() {
       const result = await promptAsync();
       if (result.type === "cancel" || result.type === "dismiss") return null;
       if (result.type !== "success") {
-        throw new Error(
+        const raw =
           result.type === "error"
             ? result.error?.message ?? "Google Sign-In could not be completed."
-            : "Google Sign-In could not be completed.",
-        );
+            : "Google Sign-In could not be completed.";
+        if (/redirect_uri|origin|OAuth 2.0 policy/i.test(raw)) {
+          const extra = redirectUri
+            ? ` Authorized redirect URI (if used): ${redirectUri}.`
+            : "";
+          throw new Error(`${googleOriginSetupMessage()}.${extra}`);
+        }
+        throw new Error(raw);
       }
 
       const idToken = result.params.id_token ?? result.authentication?.idToken;

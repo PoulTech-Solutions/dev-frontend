@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Link, useRouter } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -34,6 +34,10 @@ import { Input } from "../../components/ui/Input";
 import { LanguagePicker } from "../../components/ui/LanguagePicker";
 import {
   getAuthErrorMessage,
+  getLoginFailureMessage,
+  getOtpFailureMessage,
+  isAlreadySignedInError,
+  shouldSuggestRegistration,
   DEMO_ADMIN_EMAIL,
   DEMO_ADMIN_PASSWORD,
   DEMO_EMAIL,
@@ -41,17 +45,30 @@ import {
   DEMO_OWNER_PASSWORD,
   DEMO_PASSWORD,
   isMockAuthEnabled,
+  useCompleteLoginOtp,
   useForgotPassword,
-  useLogin,
+  useLoginChallenge,
+  useResendOtp,
+  useResetPassword,
+  DEMO_OTP,
 } from "../../hooks/useAuth";
+import { OtpInput } from "../../components/forms/OtpInput";
+import { useOtpResendCooldown } from "../../hooks/useOtpResendCooldown";
 import { useGoogleAuth } from "../../hooks/useGoogleAuth";
 import { useAuthStore } from "../../store/useAuthStore";
 import type { AuthUser } from "../../store/useAuthStore";
 import { useLanguage } from "../../utils/i18n";
+import { BACKEND_PASSWORD_HINT, BACKEND_PASSWORD_REGEX, registerPathFromLogin } from "../../utils/authValidation";
 
 const emailSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address you can access (for example, name@example.com)."),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .regex(BACKEND_PASSWORD_REGEX, BACKEND_PASSWORD_HINT),
 });
 type EmailForm = z.infer<typeof emailSchema>;
 
@@ -375,29 +392,64 @@ function LoginForm() {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 900;
   const completeSignIn = useAuthStore((state) => state.completeSignIn);
-  const emailLogin = useLogin();
+  const loginChallenge = useLoginChallenge();
+  const completeLoginOtp = useCompleteLoginOtp();
   const forgotPassword = useForgotPassword();
+  const resetPasswordMutation = useResetPassword();
+  const resendOtp = useResendOtp();
+  const loginResendCooldown = useOtpResendCooldown();
+  const resetResendCooldown = useOtpResendCooldown();
   const google = useGoogleAuth();
+  const [loginPhase, setLoginPhase] = useState<"password" | "otp" | "reset">("password");
+  const [otpSessionId, setOtpSessionId] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpHint, setOtpHint] = useState("");
+  const [resetOtpSessionId, setResetOtpSessionId] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [confirmDeviceSwitch, setConfirmDeviceSwitch] = useState(false);
+  const [showDeviceSwitchPrompt, setShowDeviceSwitchPrompt] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [banner, setBanner] = useState("");
   const [bannerIsError, setBannerIsError] = useState(false);
+  const [showRegisterHint, setShowRegisterHint] = useState(false);
   const shake = useSharedValue(0);
   const toastOpacity = useSharedValue(0);
   const toastTranslateY = useSharedValue(-8);
   const entrance = useSharedValue(0);
   const passwordRef = useRef<TextInput>(null);
 
+  const signupParams = useLocalSearchParams<{ email?: string; registered?: string }>();
   const emailForm = useForm<EmailForm>({
     resolver: zodResolver(emailSchema),
     defaultValues: { email: "", password: "" },
     mode: "onChange",
   });
-  const forgotEmailSchema = z.string().trim().email("Enter your email first.");
+  const forgotEmailSchema = z
+    .string()
+    .trim()
+    .email("Enter a valid email address you can access (for example, name@example.com).");
+  const loginEmailValue = emailForm.watch("email");
+  const registerHref = registerPathFromLogin(loginEmailValue);
 
   useEffect(() => {
     entrance.value = withTiming(1, { duration: 400 });
   }, [entrance]);
+
+  useEffect(() => {
+    const prefill = typeof signupParams.email === "string" ? signupParams.email.trim() : "";
+    if (prefill) {
+      emailForm.setValue("email", prefill, { shouldValidate: true });
+    }
+    if (signupParams.registered === "1") {
+      setBanner("Email confirmed. Sign in with the same password, then enter the login code from your email.");
+      setBannerIsError(false);
+      setShowRegisterHint(false);
+    }
+  }, [signupParams.email, signupParams.registered, emailForm]);
 
   useEffect(() => {
     if (!banner) {
@@ -419,7 +471,15 @@ function LoginForm() {
   }));
 
   const showError = (message: string) => {
+    setShowRegisterHint(false);
     setBanner(message);
+    setBannerIsError(true);
+    haptic("error");
+  };
+
+  const showLoginError = (error: unknown) => {
+    setShowRegisterHint(shouldSuggestRegistration(error));
+    setBanner(getLoginFailureMessage(error));
     setBannerIsError(true);
     haptic("error");
   };
@@ -436,26 +496,117 @@ function LoginForm() {
   };
 
   const finishSignIn = async (
-    result: { accessToken: string; user: AuthUser; isNewUser?: boolean },
+    result: {
+      accessToken: string;
+      user: AuthUser;
+      isNewUser?: boolean;
+      mustChangePassword?: boolean;
+      mustVerifyEmail?: boolean;
+    },
     remember: boolean,
   ) => {
     await completeSignIn(result.user, result.accessToken, remember);
     haptic("success");
-    router.replace(
-      result.isNewUser || !result.user.role
-        ? "/(auth)/register"
-        : "/(tabs)/dashboard",
+    const needsProfileSetup =
+      Boolean(result.mustVerifyEmail ?? result.user.mustVerifyEmail) ||
+      result.user.isProfileComplete === false;
+    if (result.mustChangePassword) {
+      setBanner("Sign-in succeeded. Change your password in profile settings.");
+      setBannerIsError(false);
+    }
+    router.replace(needsProfileSetup ? "/(auth)/register" : "/(tabs)/dashboard");
+  };
+
+  const requestLoginChallenge = async (values: EmailForm, deviceSwitch: boolean) => {
+    const challenge = await loginChallenge.mutateAsync({
+      email: values.email,
+      password: values.password,
+      remember_me: rememberMe,
+      confirm_device_switch: deviceSwitch,
+    });
+    setConfirmDeviceSwitch(deviceSwitch);
+    setOtpSessionId(challenge.otp_session_id);
+    setOtpHint(challenge.masked_destination ?? "");
+    loginResendCooldown.startFromChallenge(challenge.resend_after);
+    setLoginPhase("otp");
+    setShowDeviceSwitchPrompt(false);
+    setBanner(
+      challenge.hint ??
+        `Enter the 6-digit code sent to ${challenge.masked_destination ?? "your email"}.`,
     );
+    setBannerIsError(false);
   };
 
   const submitEmail = async (values: EmailForm) => {
     setBanner("");
     setBannerIsError(false);
+    setShowRegisterHint(false);
+    setConfirmDeviceSwitch(false);
+    setShowDeviceSwitchPrompt(false);
     try {
-      const result = await emailLogin.mutateAsync(values);
+      if (isMockAuthEnabled) {
+        const challenge = await loginChallenge.mutateAsync(values);
+        setOtpSessionId(challenge.otp_session_id);
+        loginResendCooldown.startFromChallenge(challenge.resend_after);
+        setLoginPhase("otp");
+        setBanner(`Demo OTP: ${DEMO_OTP}`);
+        setBannerIsError(false);
+        return;
+      }
+      await requestLoginChallenge(values, false);
+    } catch (error) {
+      if (isAlreadySignedInError(error)) {
+        setShowDeviceSwitchPrompt(true);
+        setBanner(getAuthErrorMessage(error));
+        setBannerIsError(false);
+        return;
+      }
+      showLoginError(error);
+    }
+  };
+
+  const continueOnThisDevice = () => {
+    const values = emailForm.getValues();
+    setBanner("");
+    void requestLoginChallenge(values, true).catch((error) => {
+      showLoginError(error);
+    });
+  };
+
+  const resendLoginOtp = () => {
+    if (!otpSessionId || !loginResendCooldown.canResend) return;
+    void resendOtp
+      .mutateAsync({ otp_session_id: otpSessionId, purpose: "login" })
+      .then((challenge) => {
+        loginResendCooldown.startFromChallenge(challenge.resend_after);
+        setBanner(challenge.hint ?? "A new code was sent to your email.");
+        setBannerIsError(false);
+      })
+      .catch((error) => showError(getOtpFailureMessage(error)));
+  };
+
+  const submitLoginOtp = async () => {
+    if (otpCode.length !== 6) {
+      showError("Enter the 6-digit verification code.");
+      return;
+    }
+    setBanner("");
+    try {
+      const result = await completeLoginOtp.mutateAsync({
+        otp_session_id: otpSessionId,
+        otp: otpCode,
+        remember_me: rememberMe,
+        confirm_device_switch: confirmDeviceSwitch,
+      });
       await finishSignIn(result, rememberMe);
     } catch (error) {
-      showError(getAuthErrorMessage(error));
+      if (isAlreadySignedInError(error)) {
+        setShowDeviceSwitchPrompt(true);
+        setBanner(getAuthErrorMessage(error));
+        setBannerIsError(false);
+        return;
+      }
+      showError(getOtpFailureMessage(error));
     }
   };
 
@@ -473,10 +624,69 @@ function LoginForm() {
     setBanner("");
     try {
       const result = await forgotPassword.mutateAsync(parsedEmail.data);
-      setBanner(result.message);
+      if (result.otp_session_id) {
+        setResetOtpSessionId(result.otp_session_id);
+        setResetOtp("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+        resetResendCooldown.startFromChallenge(result.resend_after);
+        setLoginPhase("reset");
+      }
+      setBanner(
+        result.masked_destination
+          ? `${result.message} (${result.masked_destination})`
+          : result.message,
+      );
       setBannerIsError(false);
     } catch (error) {
       showError(getAuthErrorMessage(error));
+    }
+  };
+
+  const submitPasswordReset = async () => {
+    if (resetOtp.length !== 6) {
+      showError("Enter the 6-digit verification code.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      showError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      showError("Passwords do not match.");
+      return;
+    }
+    setBanner("");
+    try {
+      const result = await resetPasswordMutation.mutateAsync({
+        otp_session_id: resetOtpSessionId,
+        otp: resetOtp,
+        password: newPassword,
+        confirm_password: confirmNewPassword,
+      });
+      setLoginPhase("password");
+      setResetOtpSessionId("");
+      setBanner(result.message || "Password updated. Sign in with your new password.");
+      setBannerIsError(false);
+      emailForm.setValue("password", "");
+      haptic("success");
+    } catch (error) {
+      showError(getAuthErrorMessage(error));
+    }
+  };
+
+  const resendResetOtp = async () => {
+    if (!resetOtpSessionId || !resetResendCooldown.canResend) return;
+    try {
+      const challenge = await resendOtp.mutateAsync({
+        otp_session_id: resetOtpSessionId,
+        purpose: "reset",
+      });
+      resetResendCooldown.startFromChallenge(challenge.resend_after);
+      setBanner(challenge.hint ?? "A new code was sent to your email.");
+      setBannerIsError(false);
+    } catch (error) {
+      showError(getOtpFailureMessage(error));
     }
   };
 
@@ -689,13 +899,144 @@ function LoginForm() {
               lineHeight: 18,
             }}
           >
-            {t(banner)}
+            {bannerIsError ? banner : t(banner)}
           </Text>
         </Animated.View>
       ) : null}
 
+      {showRegisterHint ? (
+        <View style={{ marginTop: 10, alignItems: "center", gap: 6 }}>
+          <Text
+            style={{
+              textAlign: "center",
+              color: COLOR_MUTED,
+              fontFamily: FONT_REGULAR,
+              fontSize: 11,
+              lineHeight: 16,
+              paddingHorizontal: 8,
+            }}
+          >
+            {t("Use the same email you registered with, or create an account with a valid inbox.")}
+          </Text>
+          <Link href={registerHref} asChild>
+            <TouchableOpacity accessibilityRole="link">
+              <Text
+                style={{
+                  color: COLOR_ACCENT,
+                  fontFamily: FONT_SEMIBOLD,
+                  fontSize: 13,
+                  textDecorationLine: "underline",
+                }}
+              >
+                {t("Create account")}
+              </Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+      ) : null}
+
       <View style={{ marginTop: 20 }}>
         <View style={{ gap: 16 }}>
+            {loginPhase === "reset" ? (
+              <View style={{ gap: 14 }}>
+                <Text
+                  style={{
+                    color: COLOR_MUTED,
+                    fontFamily: FONT_REGULAR,
+                    fontSize: 12,
+                    lineHeight: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {t("Enter the code from your email and choose a new password.")}
+                </Text>
+                <OtpInput
+                  value={resetOtp}
+                  onChange={setResetOtp}
+                  onComplete={setResetOtp}
+                />
+                <Input
+                  accessibilityLabel={t("New password")}
+                  autoComplete="new-password"
+                  icon={<Ionicons color="#64748B" name="lock-closed-outline" size={18} />}
+                  label={t("New password")}
+                  onChangeText={setNewPassword}
+                  placeholder={t("At least 8 characters")}
+                  secureTextEntry={!showNewPassword}
+                  value={newPassword}
+                  rightElement={
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      onPress={() => setShowNewPassword((v) => !v)}
+                      className="p-2"
+                    >
+                      <Ionicons
+                        color="#64748B"
+                        name={showNewPassword ? "eye-off-outline" : "eye-outline"}
+                        size={18}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+                <Input
+                  accessibilityLabel={t("Confirm new password")}
+                  autoComplete="new-password"
+                  icon={<Ionicons color="#64748B" name="lock-closed-outline" size={18} />}
+                  label={t("Confirm new password")}
+                  onChangeText={setConfirmNewPassword}
+                  placeholder={t("Re-enter new password")}
+                  secureTextEntry={!showNewPassword}
+                  value={confirmNewPassword}
+                />
+                <Button
+                  accessibilityLabel={t("Reset password")}
+                  disabled={resetOtp.length !== 6 || newPassword.length < 8}
+                  label={t("Reset password")}
+                  loading={resetPasswordMutation.isPending}
+                  onPress={() => void submitPasswordReset()}
+                />
+                <TouchableOpacity
+                  onPress={() => void resendResetOtp()}
+                  disabled={resendOtp.isPending || !resetResendCooldown.canResend}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: resetResendCooldown.canResend ? COLOR_ACCENT : "#94A3B8",
+                      fontFamily: FONT_SEMIBOLD,
+                      fontSize: 12,
+                    }}
+                  >
+                    {resetResendCooldown.canResend
+                      ? t("Resend code")
+                      : t("Resend code in {seconds}s").replace(
+                          "{seconds}",
+                          String(resetResendCooldown.secondsLeft),
+                        )}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoginPhase("password");
+                    setResetOtp("");
+                    setBanner("");
+                  }}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: COLOR_MUTED,
+                      fontFamily: FONT_REGULAR,
+                      fontSize: 12,
+                    }}
+                  >
+                    {t("Back to sign in")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {loginPhase !== "reset" ? (
+            <>
             <Controller
               control={emailForm.control}
               name="email"
@@ -788,15 +1129,95 @@ function LoginForm() {
                 </Text>
               </TouchableOpacity>
             </View>
-            <Button
-              accessibilityLabel={t("Sign in with email and password")}
-              disabled={!emailForm.formState.isValid}
-              label={t("Sign In  →")}
-              loading={emailLogin.isPending}
-              onPress={() =>
-                void emailForm.handleSubmit(submitEmail, runShake)()
-              }
-            />
+            {loginPhase === "otp" ? (
+              <View style={{ gap: 12, marginTop: 8 }}>
+                <Text
+                  style={{
+                    color: COLOR_MUTED,
+                    fontFamily: FONT_REGULAR,
+                    fontSize: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  {otpHint ? `Code sent to ${otpHint}` : t("Enter your verification code")}
+                </Text>
+                <OtpInput
+                  value={otpCode}
+                  onChange={setOtpCode}
+                  onComplete={(code) => {
+                    setOtpCode(code);
+                    void submitLoginOtp();
+                  }}
+                />
+                <Button
+                  accessibilityLabel={t("Verify and sign in")}
+                  disabled={otpCode.length !== 6}
+                  label={t("Verify & Sign In  →")}
+                  loading={completeLoginOtp.isPending}
+                  onPress={() => void submitLoginOtp()}
+                />
+                <TouchableOpacity
+                  disabled={resendOtp.isPending || !loginResendCooldown.canResend}
+                  onPress={resendLoginOtp}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: loginResendCooldown.canResend ? COLOR_ACCENT : "#94A3B8",
+                      fontFamily: FONT_SEMIBOLD,
+                      fontSize: 12,
+                    }}
+                  >
+                    {loginResendCooldown.canResend
+                      ? t("Resend code")
+                      : t("Resend code in {seconds}s").replace(
+                          "{seconds}",
+                          String(loginResendCooldown.secondsLeft),
+                        )}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoginPhase("password");
+                    setOtpCode("");
+                    setBanner("");
+                  }}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: COLOR_ACCENT,
+                      fontFamily: FONT_SEMIBOLD,
+                      fontSize: 12,
+                    }}
+                  >
+                    {t("Back to password")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+              <Button
+                accessibilityLabel={t("Sign in with email and password")}
+                disabled={!emailForm.formState.isValid}
+                label={t("Sign In  →")}
+                loading={loginChallenge.isPending}
+                onPress={() =>
+                  void emailForm.handleSubmit(submitEmail, runShake)()
+                }
+              />
+              {showDeviceSwitchPrompt ? (
+                <Button
+                  accessibilityLabel={t("Sign in on this device")}
+                  label={t("Sign in on this device")}
+                  loading={loginChallenge.isPending}
+                  onPress={continueOnThisDevice}
+                />
+              ) : null}
+              </>
+            )}
+            </>
+            ) : null}
         </View>
       </View>
 
@@ -855,7 +1276,7 @@ function LoginForm() {
         <Link
           accessibilityRole="link"
           className="focus-visible:ring-2 focus-visible:ring-accent"
-          href="/(auth)/register"
+          href={registerHref}
         >
           <Text style={{ color: COLOR_ACCENT, fontFamily: FONT_SEMIBOLD, fontSize: 12 }}>
             {t("Create account")}
