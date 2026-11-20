@@ -14,6 +14,7 @@ import { useAuthStore } from "../../../store/useAuthStore";
 import { useWalletStore } from "../../../store/useWalletStore";
 import { DEMO_WALLET } from "../../../utils/demoData";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { pageToneColor } from "../../../components/ui/SectionTitle";
 import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 
@@ -27,7 +28,8 @@ function formatCurrency(value: number | null, language: string) {
 
 export default function WalletScreen() {
   const { width } = useAppLayout();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("amber", isDark, colors.page);
   const { language, t } = useLanguage();
   const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
   const balance = useWalletStore((state) => state.balance);
@@ -51,7 +53,7 @@ export default function WalletScreen() {
   };
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
@@ -60,11 +62,12 @@ export default function WalletScreen() {
           <ModuleHeader
             title="Wallet"
             subtitle="Your wallet and referral rewards in one place."
+            tone="amber"
           />
           {isDemoSession ? (
-            <View style={{ marginBottom: 14, flexDirection: "row", alignItems: "center", borderRadius: 13, backgroundColor: "#FFFBEB", padding: 11 }}>
-              <Ionicons color="#A16207" name="information-circle-outline" size={17} />
-              <Text style={{ flex: 1, marginLeft: 7, color: "#854D0E", fontFamily: "Poppins_400Regular", fontSize: 10, lineHeight: 16 }}>
+            <View style={{ marginBottom: 14, flexDirection: "row", alignItems: "center", borderRadius: 13, backgroundColor: isDark ? "#422006" : "#FFFBEB", padding: 11 }}>
+              <Ionicons color={isDark ? "#FCD34D" : "#A16207"} name="information-circle-outline" size={17} />
+              <Text style={{ flex: 1, marginLeft: 7, color: isDark ? "#FDE68A" : "#854D0E", fontFamily: "Poppins_400Regular", fontSize: 10, lineHeight: 16 }}>
                 {t("Demo wallet · sample balances and transactions; no real funds")}
               </Text>
             </View>
@@ -119,25 +122,25 @@ export default function WalletScreen() {
             style={{
               marginTop: 16,
               borderWidth: 1,
-              borderColor: "#E2E8F0",
+              borderColor: colors.line,
               borderRadius: 20,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
               padding: 18,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#EAF8EC" }}>
-                <Ionicons color="#14532D" name="gift-outline" size={19} />
+              <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.promoBg }}>
+                <Ionicons color={colors.accent} name="gift-outline" size={19} />
               </View>
               <View style={{ flex: 1, marginLeft: 11 }}>
-                <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
+                <Text style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
                   {t("Referral rewards")}
                 </Text>
-                <Text style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11 }}>
+                <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11 }}>
                   {displayedReferralCode ? t("Your code: {code}").replace("{code}", displayedReferralCode) : t("Your referral code will appear here when available.")}
                 </Text>
               </View>
-              <Text style={{ color: "#14532D", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+              <Text style={{ color: colors.accent, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
                 {formatCurrency(displayedReferralBalance, language)}
               </Text>
             </View>
@@ -158,8 +161,8 @@ export default function WalletScreen() {
                 backgroundColor: displayedReferralCode ? "#16A34A" : "#DCFCE7",
               }}
             >
-              <Ionicons color={displayedReferralCode ? "#FFFFFF" : "#64748B"} name="share-social-outline" size={17} />
-              <Text style={{ marginLeft: 8, color: displayedReferralCode ? "#FFFFFF" : "#64748B", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+              <Ionicons color={displayedReferralCode ? "#FFFFFF" : colors.muted} name="share-social-outline" size={17} />
+              <Text style={{ marginLeft: 8, color: displayedReferralCode ? "#FFFFFF" : colors.muted, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
                 {t(displayedReferralCode ? "Share referral code" : "Referral sharing unavailable")}
               </Text>
             </Pressable>
@@ -171,21 +174,21 @@ export default function WalletScreen() {
           </View>
 
           <View style={{ marginTop: 24 }}>
-            <Text style={{ marginBottom: 12, color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 16 }}>
+            <Text style={{ marginBottom: 12, color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 16 }}>
               {t("Recent activity")}
             </Text>
             {isDemoSession ? (
-              <View style={{ borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 20, backgroundColor: "#FFFFFF", paddingHorizontal: 16 }}>
+              <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 20, backgroundColor: colors.card, paddingHorizontal: 16 }}>
                 {DEMO_WALLET.transactions.map((transaction) => (
-                  <View key={`${transaction.title}-${transaction.date}`} style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#F1F5F9", paddingVertical: 13 }}>
-                    <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: transaction.type === "credit" ? "#DCFCE7" : "#EFF6FF" }}>
-                      <Ionicons color={transaction.type === "credit" ? "#15803D" : "#1D4ED8"} name={transaction.type === "credit" ? "arrow-down-outline" : "cart-outline"} size={18} />
+                  <View key={`${transaction.title}-${transaction.date}`} style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 13 }}>
+                    <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: transaction.type === "credit" ? colors.promoBg : colors.cardSoft }}>
+                      <Ionicons color={transaction.type === "credit" ? colors.accent : colors.primary} name={transaction.type === "credit" ? "arrow-down-outline" : "cart-outline"} size={18} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 11 }}>
-                      <Text style={{ color: "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 11 }}>{t(transaction.title)}</Text>
-                      <Text style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 9 }}>{t(transaction.detail)} · {t(transaction.date)}</Text>
+                      <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 11 }}>{t(transaction.title)}</Text>
+                      <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 9 }}>{t(transaction.detail)} · {t(transaction.date)}</Text>
                     </View>
-                    <Text style={{ color: transaction.type === "credit" ? "#15803D" : "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                    <Text style={{ color: transaction.type === "credit" ? colors.accent : colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
                       {transaction.amount > 0 ? "+" : "−"}{formatCurrency(Math.abs(transaction.amount), language)}
                     </Text>
                   </View>

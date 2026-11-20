@@ -57,6 +57,7 @@ import { useOtpResendCooldown } from "../../hooks/useOtpResendCooldown";
 import { useGoogleAuth } from "../../hooks/useGoogleAuth";
 import { useAuthStore } from "../../store/useAuthStore";
 import type { AuthUser } from "../../store/useAuthStore";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 import { BACKEND_PASSWORD_HINT, BACKEND_PASSWORD_REGEX, registerPathFromLogin } from "../../utils/authValidation";
 
@@ -76,11 +77,8 @@ const FONT_REGULAR = "Poppins_400Regular";
 const FONT_MEDIUM = "Poppins_500Medium";
 const FONT_SEMIBOLD = "Poppins_600SemiBold";
 const FONT_BOLD = "Poppins_700Bold";
-const COLOR_PRIMARY = "#0B2A5B";
 const COLOR_FOREST = "#14532D";
 const COLOR_ACCENT = "#16A34A";
-const COLOR_MUTED = "#64748B";
-const COLOR_LINE = "#E2E8F0";
 
 function haptic(type: "success" | "error") {
   if (Platform.OS === "web") return;
@@ -300,9 +298,9 @@ function MobileHero({ height }: { height: number }) {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Image
             accessibilityLabel="Poultech Solutions logo"
-            contentFit="cover"
-            source={require("../../assets/images/logo.png")}
-            style={{ width: 40, height: 40, borderRadius: 12 }}
+            contentFit="contain"
+            source={require("../../assets/images/logo-mark.png")}
+            style={{ width: 40, height: 40 }}
           />
           <Text
             style={{
@@ -348,6 +346,7 @@ function Checkbox({
   checked: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useAppTheme();
   const { t } = useLanguage();
   return (
     <Pressable
@@ -367,7 +366,7 @@ function Checkbox({
           borderRadius: 5,
           borderWidth: 1,
           borderColor: checked ? COLOR_ACCENT : "#CBD5E1",
-          backgroundColor: checked ? COLOR_ACCENT : "#FFFFFF",
+          backgroundColor: checked ? COLOR_ACCENT : colors.card,
         }}
       >
         {checked ? <Ionicons color="#FFFFFF" name="checkmark" size={13} /> : null}
@@ -375,7 +374,7 @@ function Checkbox({
       <Text
         style={{
           marginLeft: 8,
-          color: "#334155",
+          color: colors.ink,
           fontFamily: FONT_REGULAR,
           fontSize: 12,
         }}
@@ -388,6 +387,10 @@ function Checkbox({
 
 function LoginForm() {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const COLOR_PRIMARY = colors.primary;
+  const COLOR_MUTED = colors.muted;
+  const COLOR_LINE = colors.line;
   const { t } = useLanguage();
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 900;
@@ -800,7 +803,7 @@ function LoginForm() {
         borderRadius: 14,
         borderWidth: 1,
         borderColor: COLOR_LINE,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: colors.card,
         opacity: !google.isConfigured ? 0.6 : 1,
       }}
     >
@@ -953,12 +956,12 @@ function LoginForm() {
                 <OtpInput
                   value={resetOtp}
                   onChange={setResetOtp}
-                  onComplete={setResetOtp}
+                  onComplete={() => undefined}
                 />
                 <Input
                   accessibilityLabel={t("New password")}
                   autoComplete="new-password"
-                  icon={<Ionicons color="#64748B" name="lock-closed-outline" size={18} />}
+                  icon={<Ionicons color={COLOR_MUTED} name="lock-closed-outline" size={18} />}
                   label={t("New password")}
                   onChangeText={setNewPassword}
                   placeholder={t("At least 8 characters")}
@@ -971,7 +974,7 @@ function LoginForm() {
                       className="p-2"
                     >
                       <Ionicons
-                        color="#64748B"
+                        color={COLOR_MUTED}
                         name={showNewPassword ? "eye-off-outline" : "eye-outline"}
                         size={18}
                       />
@@ -981,7 +984,7 @@ function LoginForm() {
                 <Input
                   accessibilityLabel={t("Confirm new password")}
                   autoComplete="new-password"
-                  icon={<Ionicons color="#64748B" name="lock-closed-outline" size={18} />}
+                  icon={<Ionicons color={COLOR_MUTED} name="lock-closed-outline" size={18} />}
                   label={t("Confirm new password")}
                   onChangeText={setConfirmNewPassword}
                   placeholder={t("Re-enter new password")}
@@ -1045,7 +1048,7 @@ function LoginForm() {
                   accessibilityLabel={t("Email address")}
                   autoComplete="email"
                   error={emailForm.formState.errors.email?.message ? t(emailForm.formState.errors.email.message) : undefined}
-                  icon={<Ionicons color="#64748B" name="mail-outline" size={18} />}
+                  icon={<Ionicons color={COLOR_MUTED} name="mail-outline" size={18} />}
                   keyboardType="email-address"
                   label={t("Email address")}
                   onBlur={onBlur}
@@ -1068,7 +1071,7 @@ function LoginForm() {
                   accessibilityLabel={t("Password")}
                   autoComplete="current-password"
                   error={emailForm.formState.errors.password?.message ? t(emailForm.formState.errors.password.message) : undefined}
-                  icon={<Ionicons color="#64748B" name="lock-closed-outline" size={18} />}
+                  icon={<Ionicons color={COLOR_MUTED} name="lock-closed-outline" size={18} />}
                   inputRef={passwordRef}
                   label={t("Password")}
                   onBlur={onBlur}
@@ -1089,7 +1092,7 @@ function LoginForm() {
                       onPress={() => setShowPassword((visible) => !visible)}
                     >
                       <Ionicons
-                        color="#64748B"
+                        color={COLOR_MUTED}
                         name={showPassword ? "eye-off-outline" : "eye-outline"}
                         size={18}
                       />
@@ -1144,8 +1147,7 @@ function LoginForm() {
                 <OtpInput
                   value={otpCode}
                   onChange={setOtpCode}
-                  onComplete={(code) => {
-                    setOtpCode(code);
+                  onComplete={() => {
                     void submitLoginOtp();
                   }}
                 />
@@ -1327,7 +1329,7 @@ function LoginForm() {
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
-          backgroundColor: "#FAF7F0",
+          backgroundColor: colors.page,
           paddingVertical: 16,
         }}
       >
@@ -1364,8 +1366,8 @@ function LoginForm() {
             flexDirection: "row",
             overflow: "hidden",
             borderRadius: 32,
-            backgroundColor: "#FFFFFF",
-            shadowColor: "#0B2A5B",
+            backgroundColor: colors.card,
+            shadowColor: colors.primary,
             shadowOpacity: 0.15,
             shadowRadius: 40,
             shadowOffset: { width: 0, height: 30 },
@@ -1382,15 +1384,15 @@ function LoginForm() {
               paddingHorizontal: panelPadding,
               paddingVertical: 32,
               justifyContent: "space-between",
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Image
                 accessibilityLabel="Poultech Solutions logo"
-                contentFit="cover"
-                source={require("../../assets/images/logo.png")}
-                style={{ width: 40, height: 40, borderRadius: 12 }}
+                contentFit="contain"
+                source={require("../../assets/images/logo-mark-light.png")}
+                style={{ width: 40, height: 40 }}
               />
               <Text
                 style={{
@@ -1409,7 +1411,7 @@ function LoginForm() {
                   borderWidth: 1,
                   borderColor: COLOR_LINE,
                   borderRadius: 999,
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: colors.cardSoft,
                   paddingHorizontal: 10,
                   paddingVertical: 5,
                 }}
@@ -1444,7 +1446,7 @@ function LoginForm() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, backgroundColor: "#FAF7F0" }}
+      style={{ flex: 1, backgroundColor: colors.page }}
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}
@@ -1459,7 +1461,7 @@ function LoginForm() {
             marginTop: 14,
             marginHorizontal: 14,
             borderRadius: 28,
-            backgroundColor: "#FFFFFF",
+            backgroundColor: colors.card,
             paddingHorizontal: 24,
             paddingTop: 28,
             paddingBottom: 22,
@@ -1475,19 +1477,20 @@ function LoginForm() {
 
 export default function LoginScreen() {
   const { width } = useWindowDimensions();
+  const { colors, isDark } = useAppTheme();
 
   if (width >= 900) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
-        <StatusBar style="dark" />
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <StatusBar style={isDark ? "light" : "dark"} />
         <LoginForm />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.page }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       <LoginForm />
     </SafeAreaView>
   );

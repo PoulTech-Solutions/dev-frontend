@@ -7,6 +7,7 @@ import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ModuleHeader } from "../../../components/ui/ModuleHeader";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { pageToneColor } from "../../../components/ui/SectionTitle";
 import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 import { useAuthStore } from "../../../store/useAuthStore";
@@ -39,7 +40,8 @@ function formatInvoiceDate(value: string, language: string) {
 export default function BillingScreen() {
   const router = useRouter();
   const { width } = useAppLayout();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("navy", isDark, colors.page);
   const { language, t } = useLanguage();
   const user = useAuthStore((state) => state.user);
   const demoMode = Boolean(user?.id.startsWith("mock-"));
@@ -191,17 +193,17 @@ export default function BillingScreen() {
   const fieldStyle = {
     minHeight: 50,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: colors.line,
     borderRadius: 14,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.cardSoft,
     paddingHorizontal: 14,
-    color: "#0F172A",
+    color: colors.ink,
     fontFamily: "Poppins_400Regular",
     fontSize: 13,
   } as const;
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28 }}
         keyboardShouldPersistTaps="handled"
@@ -224,6 +226,7 @@ export default function BillingScreen() {
           <ModuleHeader
             title="Billing software"
             subtitle="Prepare an invoice and share a PDF with your customer."
+            tone="navy"
           />
 
           {isCustomer ? (
@@ -241,24 +244,24 @@ export default function BillingScreen() {
                   gap: 18,
                 }}
               >
-              <View style={{ flex: isWideLayout ? 0.9 : undefined, width: isWideLayout ? undefined : "100%", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 22, backgroundColor: "#FFFFFF", padding: 20 }}>
+              <View style={{ flex: isWideLayout ? 0.9 : undefined, width: isWideLayout ? undefined : "100%", borderWidth: 1, borderColor: colors.line, borderRadius: 22, backgroundColor: colors.card, padding: 20 }}>
                 <View style={{ marginBottom: 16, flexDirection: "row", alignItems: "center" }}>
                   <View style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: "#EFF6FF" }}>
                     <Ionicons color="#1D4ED8" name="receipt-outline" size={20} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 11 }}>
-                    <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+                    <Text style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
                       {t("Create a bill")}
                     </Text>
-                    <Text style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11 }}>
+                    <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11 }}>
                       {t("Enter the customer and item details, then save a PDF invoice.")}
                     </Text>
                   </View>
                 </View>
                 {demoMode ? (
-                  <View style={{ marginBottom: 15, flexDirection: "row", alignItems: "flex-start", borderRadius: 13, backgroundColor: "#FFFBEB", padding: 11 }}>
-                    <Ionicons color="#A16207" name="information-circle-outline" size={17} />
-                    <Text style={{ flex: 1, marginLeft: 7, color: "#854D0E", fontFamily: "Poppins_400Regular", fontSize: 10, lineHeight: 16 }}>
+                  <View style={{ marginBottom: 15, flexDirection: "row", alignItems: "flex-start", borderRadius: 13, backgroundColor: isDark ? "#422006" : "#FFFBEB", padding: 11 }}>
+                    <Ionicons color={isDark ? "#FCD34D" : "#A16207"} name="information-circle-outline" size={17} />
+                    <Text style={{ flex: 1, marginLeft: 7, color: isDark ? "#FDE68A" : "#854D0E", fontFamily: "Poppins_400Regular", fontSize: 10, lineHeight: 16 }}>
                       {t("Sample invoice values are prefilled for preview. Review or edit them before sharing.")}
                     </Text>
                   </View>
@@ -272,7 +275,7 @@ export default function BillingScreen() {
                     { label: "Unit price (INR)", value: unitPrice, onChangeText: (value: string) => setUnitPrice(value.replace(/[^\d.]/g, "")), placeholder: "Enter unit price", keyboardType: "decimal-pad" as const },
                   ].map((field) => (
                     <View key={field.label}>
-                      <Text style={{ marginBottom: 7, color: "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                      <Text style={{ marginBottom: 7, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
                         {t(field.label)}
                       </Text>
                       <TextInput
@@ -288,11 +291,11 @@ export default function BillingScreen() {
                   ))}
                 </View>
 
-                <View style={{ marginTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, backgroundColor: "#F8FAFC", padding: 14 }}>
-                  <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11 }}>
+                <View style={{ marginTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, backgroundColor: colors.cardSoft, padding: 14 }}>
+                  <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11 }}>
                     {t("Invoice total")}
                   </Text>
-                  <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 20 }}>
+                  <Text style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 20 }}>
                     {formatCurrency(invoiceTotal, language)}
                   </Text>
                 </View>
@@ -316,12 +319,12 @@ export default function BillingScreen() {
               </View>
 
               <View style={{ flex: isWideLayout ? 1.1 : undefined, width: isWideLayout ? undefined : "100%", minWidth: 0, marginTop: isWideLayout ? 0 : 28 }}>
-                <Text style={{ marginBottom: 12, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 18 }}>
+                <Text style={{ marginBottom: 12, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 18 }}>
                   {t("Saved invoices")}
                 </Text>
                 {isLoadingInvoices ? (
                   <View style={{ alignItems: "center", padding: 24 }}>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
                       {t("Loading invoices")}
                     </Text>
                   </View>
@@ -330,7 +333,7 @@ export default function BillingScreen() {
                     {invoices.map((invoice) => (
                       <View
                         key={invoice.id}
-                        style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 18, backgroundColor: "#FFFFFF", padding: 14 }}
+                        style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.line, borderRadius: 18, backgroundColor: colors.card, padding: 14 }}
                       >
                         <Pressable
                           accessibilityLabel={`${t("Open invoice PDF")} ${invoice.invoiceNumber}`}
@@ -343,10 +346,10 @@ export default function BillingScreen() {
                             <Ionicons color="#14532D" name="document-text-outline" size={21} />
                           </View>
                           <View style={{ flex: 1, minWidth: 0, marginLeft: 11 }}>
-                            <Text numberOfLines={1} style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                            <Text numberOfLines={1} style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
                               {invoice.invoiceNumber} · {invoice.customerName}
                             </Text>
-                            <Text style={{ marginTop: 3, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>
+                            <Text style={{ marginTop: 3, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>
                               {formatInvoiceDate(invoice.createdAt, language)} · {formatCurrency(invoice.total, language)}
                             </Text>
                           </View>

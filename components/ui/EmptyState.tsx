@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
+import { CARD_TONES, type CardTone } from "./SectionTitle";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -8,18 +10,22 @@ interface EmptyStateProps {
   icon: IconName;
   title: string;
   description: string;
+  tone?: CardTone;
 }
 
-export function EmptyState({ icon, title, description }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, tone = "green" }: EmptyStateProps) {
   const { t } = useLanguage();
+  const { colors, isDark } = useAppTheme();
+  const palette = CARD_TONES[tone];
+
   return (
     <View
       style={{
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#E2E8F0",
+        borderColor: isDark ? colors.line : palette.border,
         borderRadius: 24,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: isDark ? colors.card : palette.bg,
         paddingHorizontal: 24,
         paddingVertical: 32,
       }}
@@ -31,15 +37,15 @@ export function EmptyState({ icon, title, description }: EmptyStateProps) {
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 20,
-          backgroundColor: "#EAF8EC",
+          backgroundColor: isDark ? colors.promoBg : palette.brush,
         }}
       >
-        <Ionicons color="#14532D" name={icon} size={27} />
+        <Ionicons color={palette.bar} name={icon} size={27} />
       </View>
       <Text
         style={{
           marginTop: 16,
-          color: "#0B2A5B",
+          color: colors.primary,
           fontFamily: "Poppins_600SemiBold",
           fontSize: 16,
           textAlign: "center",
@@ -51,7 +57,7 @@ export function EmptyState({ icon, title, description }: EmptyStateProps) {
         style={{
           maxWidth: 360,
           marginTop: 6,
-          color: "#64748B",
+          color: colors.muted,
           fontFamily: "Poppins_400Regular",
           fontSize: 12,
           lineHeight: 19,

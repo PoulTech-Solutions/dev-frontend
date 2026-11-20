@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 
 const LINKS = [
@@ -11,14 +12,15 @@ const LINKS = [
 
 export function CompanyFooter({ compact = false, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const { t } = useLanguage();
   const { width } = useWindowDimensions();
   const stacked = compact || width < 560;
 
   return (
-    <View style={compact ? { gap: 6 } : { borderTopWidth: 1, borderTopColor: "#E2E8F0", paddingTop: 16, gap: 10 }}>
+    <View style={compact ? { gap: 6 } : { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 16, gap: 10 }}>
       {compact ? null : (
-        <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
+        <Text style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
           Poultech Solutions
         </Text>
       )}
@@ -38,9 +40,9 @@ export function CompanyFooter({ compact = false, onNavigate }: { compact?: boole
                 flexDirection: "row",
                 alignItems: "center",
                 borderWidth: 1,
-                borderColor: "#E2E8F0",
+                borderColor: colors.line,
                 borderRadius: 14,
-                backgroundColor: "#FFFFFF",
+                backgroundColor: colors.card,
                 paddingHorizontal: 10,
                 paddingVertical: 8,
               }}
@@ -57,7 +59,7 @@ export function CompanyFooter({ compact = false, onNavigate }: { compact?: boole
               >
                 <MaterialCommunityIcons color={link.color} name={link.icon} size={24} />
               </View>
-              <Text numberOfLines={2} style={{ flex: 1, marginLeft: 10, color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+              <Text numberOfLines={2} style={{ flex: 1, marginLeft: 10, color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
                 {t(link.label)}
               </Text>
             </Pressable>

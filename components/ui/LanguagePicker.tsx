@@ -1,12 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { LANGUAGE_NAMES, type AppLanguage, useLanguage } from "../../utils/i18n";
 
 const LANGUAGES: AppLanguage[] = ["en", "hi", "mr"];
 
 export function LanguagePicker() {
   const { language, setLanguage, t } = useLanguage();
+  const { colors } = useAppTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   const selectLanguage = async (nextLanguage: AppLanguage) => {
@@ -32,14 +34,14 @@ export function LanguagePicker() {
           justifyContent: "center",
           gap: 6,
           borderWidth: 1,
-          borderColor: "#E2E8F0",
+          borderColor: colors.line,
           borderRadius: 12,
-          backgroundColor: "#FFFFFF",
+          backgroundColor: colors.card,
           paddingHorizontal: 10,
         }}
       >
-        <Ionicons color="#0B2A5B" name="globe-outline" size={17} />
-        <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_500Medium", fontSize: 11 }}>
+        <Ionicons color={colors.primary} name="globe-outline" size={17} />
+        <Text style={{ color: colors.primary, fontFamily: "Poppins_500Medium", fontSize: 11 }}>
           {LANGUAGE_NAMES[language]}
         </Text>
       </Pressable>
@@ -56,7 +58,7 @@ export function LanguagePicker() {
             flex: 1,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(15,23,42,0.35)",
+            backgroundColor: colors.overlay,
             padding: 24,
           }}
         >
@@ -67,11 +69,13 @@ export function LanguagePicker() {
               width: "100%",
               maxWidth: 340,
               borderRadius: 20,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.line,
               padding: 20,
             }}
           >
-            <Text style={{ marginBottom: 12, color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 17 }}>
+            <Text style={{ marginBottom: 12, color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 17 }}>
               {t("Choose language")}
             </Text>
             <View style={{ gap: 8 }}>
@@ -89,14 +93,14 @@ export function LanguagePicker() {
                       alignItems: "center",
                       justifyContent: "space-between",
                       borderRadius: 12,
-                      backgroundColor: selected ? "#F0FDF4" : "#F8FAFC",
+                      backgroundColor: selected ? colors.promoBg : colors.cardSoft,
                       paddingHorizontal: 14,
                     }}
                   >
-                    <Text style={{ color: "#0F172A", fontFamily: "Poppins_500Medium", fontSize: 14 }}>
+                    <Text style={{ color: colors.ink, fontFamily: "Poppins_500Medium", fontSize: 14 }}>
                       {LANGUAGE_NAMES[item]}
                     </Text>
-                    {selected ? <Ionicons color="#16A34A" name="checkmark-circle" size={20} /> : null}
+                    {selected ? <Ionicons color={colors.accent} name="checkmark-circle" size={20} /> : null}
                   </Pressable>
                 );
               })}

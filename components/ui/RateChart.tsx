@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
+import { useAppTheme } from "../../hooks/useAppTheme";
 
 export interface ChartPoint {
   label: string;
@@ -28,6 +29,7 @@ function place(points: ChartPoint[], width: number, height: number) {
 }
 
 export function RateChart({ points, height, color, formatValue }: RateChartProps) {
+  const { colors } = useAppTheme();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
   if (points.length < 2) return null;
@@ -82,14 +84,14 @@ export function RateChart({ points, height, color, formatValue }: RateChartProps
             width: tipWidth,
             borderRadius: 10,
             borderWidth: 1,
-            borderColor: "#E2E8F0",
-            backgroundColor: "#FFFFFF",
+            borderColor: colors.line,
+            backgroundColor: colors.card,
             paddingHorizontal: 8,
             paddingVertical: 5,
           }}
         >
-          <Text style={{ color: "#64748B", fontFamily: "Poppins_500Medium", fontSize: 11 }}>{point.label}</Text>
-          <Text style={{ color: "#0F172A", fontFamily: "Poppins_700Bold", fontSize: 13 }}>₹{formatValue(point.value)}</Text>
+          <Text style={{ color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 11 }}>{point.label}</Text>
+          <Text style={{ color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 13 }}>₹{formatValue(point.value)}</Text>
         </View>
       ) : null}
     </View>

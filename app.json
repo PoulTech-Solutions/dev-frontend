@@ -46,7 +46,12 @@
       "typedRoutes": true
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon-mark.png",
+      "name": "Poultech Solutions",
+      "shortName": "Poultech",
+      "themeColor": "#0B2A5B",
+      "backgroundColor": "#0B2A5B"
     }
   }
 }

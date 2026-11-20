@@ -1,3 +1,5 @@
+import type { Href } from "expo-router";
+
 /** Mirrors backend `password_policy_errors` rules for client-side checks. */
 export const BACKEND_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
 
@@ -13,7 +15,7 @@ export function isValidIndianMobile(value: string): boolean {
 export const INDIAN_MOBILE_HINT =
   "Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9).";
 
-export function registerPathFromLogin(email: string): string {
+export function registerPathFromLogin(email: string): Href {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) {
     return "/(auth)/register?from=login";
@@ -21,7 +23,7 @@ export function registerPathFromLogin(email: string): string {
   return `/(auth)/register?email=${encodeURIComponent(trimmed)}&from=login`;
 }
 
-export function loginPathAfterSignup(email: string): string {
+export function loginPathAfterSignup(email: string): Href {
   const trimmed = email.trim().toLowerCase();
   return `/(auth)/login?email=${encodeURIComponent(trimmed)}&registered=1`;
 }

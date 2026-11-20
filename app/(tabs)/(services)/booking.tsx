@@ -8,6 +8,7 @@ import { ModuleHeader } from "../../../components/ui/ModuleHeader";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { DEMO_BOOKINGS } from "../../../utils/demoData";
 import { useAppLayout } from "../../../hooks/useAppLayout";
+import { pageToneColor } from "../../../components/ui/SectionTitle";
 import { useAppTheme } from "../../../hooks/useAppTheme";
 import { useLanguage } from "../../../utils/i18n";
 
@@ -86,7 +87,8 @@ function formatBookingDate(date: Date, language: string) {
 
 export default function ServiceBookingScreen() {
   const { width } = useAppLayout();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("teal", isDark, colors.page);
   const { language, t } = useLanguage();
   const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
   const { service: requestedService } = useLocalSearchParams<{ service?: string }>();
@@ -160,7 +162,7 @@ export default function ServiceBookingScreen() {
   ];
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
@@ -169,6 +171,7 @@ export default function ServiceBookingScreen() {
           <ModuleHeader
             title="Farm services"
             subtitle="Find the support your flock needs."
+            tone="teal"
           />
 
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", columnGap: 12, rowGap: 12 }}>
@@ -187,9 +190,9 @@ export default function ServiceBookingScreen() {
                     minHeight: 150,
                     justifyContent: "space-between",
                     borderWidth: isSelected ? 2 : 1,
-                    borderColor: isSelected ? service.color : "#E2E8F0",
+                    borderColor: isSelected ? service.color : colors.line,
                     borderRadius: 20,
-                    backgroundColor: "#FFFFFF",
+                    backgroundColor: colors.card,
                     padding: 14,
                   }}
                 >
@@ -204,10 +207,10 @@ export default function ServiceBookingScreen() {
                     />
                   </View>
                   <View style={{ marginTop: 14 }}>
-                    <Text style={{ color: "#0B2A5B", fontFamily: SEMIBOLD, fontSize: 12, lineHeight: 18 }}>
+                    <Text style={{ color: colors.primary, fontFamily: SEMIBOLD, fontSize: 12, lineHeight: 18 }}>
                       {t(service.title)}
                     </Text>
-                    <Text style={{ marginTop: 3, color: "#64748B", fontFamily: REGULAR, fontSize: 10, lineHeight: 15 }}>
+                    <Text style={{ marginTop: 3, color: colors.muted, fontFamily: REGULAR, fontSize: 10, lineHeight: 15 }}>
                       {t(service.subtitle)}
                     </Text>
                   </View>
@@ -217,9 +220,9 @@ export default function ServiceBookingScreen() {
           </View>
 
           {isDemoSession ? (
-            <View style={{ marginTop: 16, flexDirection: "row", alignItems: "flex-start", borderRadius: 13, backgroundColor: "#FFFBEB", padding: 11 }}>
-              <Ionicons color="#A16207" name="information-circle-outline" size={17} />
-              <Text style={{ flex: 1, marginLeft: 7, color: "#854D0E", fontFamily: REGULAR, fontSize: 10, lineHeight: 16 }}>
+            <View style={{ marginTop: 16, flexDirection: "row", alignItems: "flex-start", borderRadius: 13, backgroundColor: isDark ? "#422006" : "#FFFBEB", padding: 11 }}>
+              <Ionicons color={isDark ? "#FCD34D" : "#A16207"} name="information-circle-outline" size={17} />
+              <Text style={{ flex: 1, marginLeft: 7, color: isDark ? "#FDE68A" : "#854D0E", fontFamily: REGULAR, fontSize: 10, lineHeight: 16 }}>
                 {t("Demo schedule · choose a service, date, and time to preview a booking request. Nothing is sent to a service provider.")}
               </Text>
             </View>
@@ -228,16 +231,16 @@ export default function ServiceBookingScreen() {
           <View style={{ marginTop: 20, flexDirection: contentWidth >= 900 ? "row" : "column", alignItems: "flex-start", gap: 16 }}>
             <View style={{ flex: 1, minWidth: 0, width: contentWidth >= 900 ? undefined : "100%" }}>
               {selected ? (
-                <View style={{ borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 20, backgroundColor: "#FFFFFF", padding: 16 }}>
+                <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 20, backgroundColor: colors.card, padding: 16 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
                   <View style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: selected.background }}>
                     <Ionicons color={selected.color} name="calendar-outline" size={19} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={{ color: "#0B2A5B", fontFamily: SEMIBOLD, fontSize: 14 }}>
+                    <Text style={{ color: colors.primary, fontFamily: SEMIBOLD, fontSize: 14 }}>
                       {t("Choose a date")}
                     </Text>
-                    <Text style={{ marginTop: 2, color: "#64748B", fontFamily: REGULAR, fontSize: 10 }}>
+                    <Text style={{ marginTop: 2, color: colors.muted, fontFamily: REGULAR, fontSize: 10 }}>
                       {t(selected.title)} · {t("dates shown are for preview")}
                     </Text>
                   </View>
@@ -249,18 +252,18 @@ export default function ServiceBookingScreen() {
                     accessibilityRole="button"
                     disabled={!canGoToPreviousMonth}
                     onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-                    style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: canGoToPreviousMonth ? "#F1F5F9" : "#F8FAFC" }}
+                    style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: canGoToPreviousMonth ? colors.chip : colors.cardSoft }}
                   >
                     <Ionicons color={canGoToPreviousMonth ? "#334155" : "#CBD5E1"} name="chevron-back" size={18} />
                   </Pressable>
-                  <Text style={{ color: "#0B2A5B", fontFamily: SEMIBOLD, fontSize: 13 }}>
+                  <Text style={{ color: colors.primary, fontFamily: SEMIBOLD, fontSize: 13 }}>
                     {visibleMonth.toLocaleDateString(`${language}-IN`, { month: "long", year: "numeric" })}
                   </Text>
                   <Pressable
                     accessibilityLabel={t("Next month")}
                     accessibilityRole="button"
                     onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-                    style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: "#F1F5F9" }}
+                    style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.chip }}
                   >
                     <Ionicons color="#334155" name="chevron-forward" size={18} />
                   </Pressable>
@@ -269,7 +272,7 @@ export default function ServiceBookingScreen() {
                 <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 5 }}>
                   {weekdays.map((day) => (
                     <View key={day} style={{ width: "14.2857%", height: 32, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ color: "#64748B", fontFamily: MEDIUM, fontSize: 10 }}>{day}</Text>
+                      <Text style={{ color: colors.muted, fontFamily: MEDIUM, fontSize: 10 }}>{day}</Text>
                     </View>
                   ))}
                 </View>
@@ -298,7 +301,7 @@ export default function ServiceBookingScreen() {
                         }}
                       >
                         <View style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: isSelected ? "#14532D" : "transparent" }}>
-                          <Text style={{ color: isSelected ? "#FFFFFF" : disabled ? "#CBD5E1" : "#334155", fontFamily: isSelected ? SEMIBOLD : REGULAR, fontSize: 12 }}>
+                          <Text style={{ color: isSelected ? "#FFFFFF" : disabled ? colors.muted : colors.ink, fontFamily: isSelected ? SEMIBOLD : REGULAR, fontSize: 12 }}>
                             {date.getDate()}
                           </Text>
                         </View>
@@ -308,8 +311,8 @@ export default function ServiceBookingScreen() {
                 </View>
 
                 {selectedDate ? (
-                  <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 14 }}>
-                    <Text style={{ marginBottom: 9, color: "#0B2A5B", fontFamily: SEMIBOLD, fontSize: 12 }}>
+                  <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14 }}>
+                    <Text style={{ marginBottom: 9, color: colors.primary, fontFamily: SEMIBOLD, fontSize: 12 }}>
                       {t("Available sample times")} · {formatBookingDate(selectedDate, language)}
                     </Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -322,7 +325,7 @@ export default function ServiceBookingScreen() {
                             accessibilityRole="button"
                             accessibilityState={{ selected: active }}
                             onPress={() => setSelectedTime(time)}
-                            style={{ minHeight: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: active ? "#14532D" : "#E2E8F0", borderRadius: 11, backgroundColor: active ? "#F0FDF4" : "#FFFFFF", paddingHorizontal: 12 }}
+                            style={{ minHeight: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: active ? "#14532D" : colors.line, borderRadius: 11, backgroundColor: active ? colors.promoBg : colors.card, paddingHorizontal: 12 }}
                           >
                             <Text style={{ color: active ? "#14532D" : "#475569", fontFamily: active ? SEMIBOLD : MEDIUM, fontSize: 11 }}>
                               {time}
@@ -341,13 +344,13 @@ export default function ServiceBookingScreen() {
                         onPress={addDemoRequest}
                         style={{ minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 14, borderRadius: 13, backgroundColor: selectedTime ? "#16A34A" : "#DCFCE7" }}
                       >
-                        <Ionicons color={selectedTime ? "#FFFFFF" : "#64748B"} name="calendar-outline" size={17} />
-                        <Text style={{ marginLeft: 8, color: selectedTime ? "#FFFFFF" : "#64748B", fontFamily: SEMIBOLD, fontSize: 12 }}>
+                        <Ionicons color={selectedTime ? "#FFFFFF" : colors.muted} name="calendar-outline" size={17} />
+                        <Text style={{ marginLeft: 8, color: selectedTime ? "#FFFFFF" : colors.muted, fontFamily: SEMIBOLD, fontSize: 12 }}>
                           {t("Add demo request")}
                         </Text>
                       </Pressable>
                     ) : (
-                      <Text style={{ marginTop: 12, color: "#64748B", fontFamily: REGULAR, fontSize: 10, lineHeight: 16 }}>
+                      <Text style={{ marginTop: 12, color: colors.muted, fontFamily: REGULAR, fontSize: 10, lineHeight: 16 }}>
                         {t("Booking isn’t connected yet. Your selected date and time are only a preview.")}
                       </Text>
                     )}
@@ -364,18 +367,18 @@ export default function ServiceBookingScreen() {
             </View>
 
             {isDemoSession ? (
-              <View style={{ flex: 1, minWidth: 0, width: contentWidth >= 900 ? undefined : "100%", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 20, backgroundColor: "#FFFFFF", padding: 16 }}>
-                <Text style={{ marginBottom: 10, color: "#0B2A5B", fontFamily: BOLD, fontSize: 14 }}>
+              <View style={{ flex: 1, minWidth: 0, width: contentWidth >= 900 ? undefined : "100%", borderWidth: 1, borderColor: colors.line, borderRadius: 20, backgroundColor: colors.card, padding: 16 }}>
+                <Text style={{ marginBottom: 10, color: colors.primary, fontFamily: BOLD, fontSize: 14 }}>
                   {t("Demo service requests")}
                 </Text>
                 {requests.map((booking) => (
-                  <View key={booking.id} style={{ flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingVertical: 11 }}>
+                  <View key={booking.id} style={{ flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.line, paddingVertical: 11 }}>
                     <View style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#EFF6FF" }}>
                       <Ionicons color="#1D4ED8" name="calendar-outline" size={17} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-                      <Text numberOfLines={1} style={{ color: "#0F172A", fontFamily: SEMIBOLD, fontSize: 11 }}>{t(booking.service)}</Text>
-                      <Text numberOfLines={1} style={{ marginTop: 2, color: "#64748B", fontFamily: REGULAR, fontSize: 10 }}>{t(booking.date)} · {booking.time}</Text>
+                      <Text numberOfLines={1} style={{ color: colors.ink, fontFamily: SEMIBOLD, fontSize: 11 }}>{t(booking.service)}</Text>
+                      <Text numberOfLines={1} style={{ marginTop: 2, color: colors.muted, fontFamily: REGULAR, fontSize: 10 }}>{t(booking.date)} · {booking.time}</Text>
                     </View>
                     <Text style={{ marginLeft: 6, color: booking.status === "Confirmed" ? "#15803D" : "#A16207", fontFamily: SEMIBOLD, fontSize: 9 }}>{t(booking.status)}</Text>
                   </View>

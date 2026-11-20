@@ -175,8 +175,8 @@ export default function SplashScreenView() {
               <Image
                 accessibilityLabel="Poultech Solutions logo"
                 contentFit="contain"
-                source={require("../assets/images/logo.png")}
-                style={{ width: 112, height: 112, borderRadius: 28 }}
+                source={require("../assets/images/logo-mark.png")}
+                style={{ width: 112, height: 112 }}
               />
             </Animated.View>
           </Animated.View>

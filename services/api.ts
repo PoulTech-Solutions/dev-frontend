@@ -1,7 +1,17 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "../store/useAuthStore";
 
-type RetryConfig = InternalAxiosRequestConfig & { skipAuthRefresh?: boolean; _authRetried?: boolean };
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    skipAuthRefresh?: boolean;
+    _authRetried?: boolean;
+  }
+}
+
+type RetryConfig = InternalAxiosRequestConfig & {
+  skipAuthRefresh?: boolean;
+  _authRetried?: boolean;
+};
 
 const defaultApiRoot =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ??

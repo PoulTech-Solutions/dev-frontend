@@ -51,7 +51,7 @@ export function useGoogleAuth() {
     if (!gsi) throw new Error("Google Sign-In is still initializing. Try again shortly.");
 
     setIsPrompting(true);
-    let host: HTMLDivElement | null = null;
+    const overlay: { el: HTMLDivElement | null } = { el: null };
     try {
       const idToken = await new Promise<string>((resolve, reject) => {
         let settled = false;
@@ -65,8 +65,8 @@ export function useGoogleAuth() {
         };
 
         const cleanup = () => {
-          host?.remove();
-          host = null;
+          overlay.el?.parentNode?.removeChild(overlay.el);
+          overlay.el = null;
         };
 
         gsi.initialize({
@@ -83,7 +83,8 @@ export function useGoogleAuth() {
           itp_support: true,
         });
 
-        host = document.createElement("div");
+        const host = document.createElement("div");
+        overlay.el = host;
         host.style.position = "fixed";
         host.style.inset = "0";
         host.style.display = "flex";
@@ -138,7 +139,10 @@ export function useGoogleAuth() {
       return await backend.mutateAsync(idToken);
     } finally {
       setIsPrompting(false);
-      host?.remove();
+      if (overlay.el) {
+        overlay.el.parentNode?.removeChild(overlay.el);
+        overlay.el = null;
+      }
     }
   }, [webClientId, backend]);
 

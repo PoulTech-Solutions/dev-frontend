@@ -25,6 +25,7 @@ import {
 import { useOtpResendCooldown } from "../../hooks/useOtpResendCooldown";
 import { useAuthStore } from "../../store/useAuthStore";
 import type { AuthUser, SelfSelectedRole } from "../../store/useAuthStore";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 import {
   BACKEND_PASSWORD_HINT,
@@ -71,9 +72,10 @@ function ProfileField({
   autoComplete?: "name" | "email" | "tel" | "off" | "new-password";
   secureTextEntry?: boolean;
 }) {
+  const { colors } = useAppTheme();
   return (
     <View>
-      <Text style={{ marginBottom: 7, color: "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+      <Text style={{ marginBottom: 7, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
         {label}
       </Text>
       <TextInput
@@ -89,11 +91,11 @@ function ProfileField({
         style={{
           minHeight: 50,
           borderWidth: 1,
-          borderColor: "#E2E8F0",
+          borderColor: colors.line,
           borderRadius: 14,
-          backgroundColor: "#F8FAFC",
+          backgroundColor: colors.cardSoft,
           paddingHorizontal: 14,
-          color: "#0F172A",
+          color: colors.ink,
           fontFamily: "Poppins_400Regular",
           fontSize: 13,
         }}
@@ -105,6 +107,7 @@ function ProfileField({
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const { t } = useLanguage();
   const routeParams = useLocalSearchParams<{ email?: string; from?: string }>();
   const user = useAuthStore((state) => state.user);
@@ -317,7 +320,7 @@ export default function RegisterScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF7F0" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.page }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -336,9 +339,9 @@ export default function RegisterScreen() {
               maxWidth: 560,
               alignSelf: "center",
               borderWidth: 1,
-              borderColor: "#F1F5F9",
+              borderColor: colors.line,
               borderRadius: 28,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
               padding: 24,
               ...(Platform.OS === "web"
                 ? { boxShadow: "0px 24px 64px rgba(11,42,91,0.10)" }
@@ -358,14 +361,14 @@ export default function RegisterScreen() {
               <Ionicons color="#14532D" name={isProfileSetup ? "person-circle-outline" : "leaf-outline"} size={25} />
             </View>
 
-            <Text style={{ marginTop: 18, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 26, lineHeight: 34 }}>
+            <Text style={{ marginTop: 18, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 26, lineHeight: 34 }}>
               {isProfileSetup
                 ? t("Set up your profile")
                 : signupStep === "details"
                   ? t("Create your account")
                   : t("Verify your email")}
             </Text>
-            <Text style={{ marginTop: 6, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 20 }}>
+            <Text style={{ marginTop: 6, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 20 }}>
               {isProfileSetup
                 ? t("Choose how you’ll use Poultech and add your profile details.")
                 : signupStep === "details"
@@ -375,7 +378,7 @@ export default function RegisterScreen() {
 
             {isProfileSetup ? (
               <>
-                <Text style={{ marginTop: 22, marginBottom: 10, color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+                <Text style={{ marginTop: 22, marginBottom: 10, color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
                   {t("Choose your role")}
                 </Text>
                 <View style={{ gap: 10 }}>
@@ -394,20 +397,20 @@ export default function RegisterScreen() {
                           flexDirection: "row",
                           alignItems: "center",
                           borderWidth: selected ? 2 : 1,
-                          borderColor: selected ? "#16A34A" : "#E2E8F0",
+                          borderColor: selected ? "#16A34A" : colors.line,
                           borderRadius: 16,
-                          backgroundColor: selected ? "#F0FDF4" : "#FFFFFF",
+                          backgroundColor: selected ? colors.promoBg : colors.card,
                           paddingHorizontal: 14,
                         }}
                       >
-                        <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: selected ? "#DCFCE7" : "#F1F5F9" }}>
-                          <Ionicons color={selected ? "#14532D" : "#64748B"} name={role.icon} size={19} />
+                        <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: selected ? colors.promoBg : colors.chip }}>
+                          <Ionicons color={selected ? colors.accent : colors.muted} name={role.icon} size={19} />
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={{ color: "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
+                          <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
                             {t(role.title)}
                           </Text>
-                          <Text style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 16 }}>
+                          <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 16 }}>
                             {t(role.description)}
                           </Text>
                         </View>
@@ -417,7 +420,7 @@ export default function RegisterScreen() {
                   })}
                 </View>
 
-                <Text style={{ marginTop: 22, marginBottom: 12, color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+                <Text style={{ marginTop: 22, marginBottom: 12, color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
                   {t("Your profile")}
                 </Text>
                 <View style={{ gap: 14 }}>
@@ -437,7 +440,7 @@ export default function RegisterScreen() {
                   </View>
                 </View>
 
-                <Text style={{ marginTop: 14, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
+                <Text style={{ marginTop: 14, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
                   {isAuthenticated && !isMockAuthEnabled
                     ? t("Add your phone and details to finish your account (required for Google and email sign-in).")
                     : t("Profile details are saved to this device until the backend profile endpoint is available.")}
@@ -461,7 +464,7 @@ export default function RegisterScreen() {
                   <ProfileField autoComplete="new-password" label={t("Password")} onChangeText={setPassword} placeholder={t("At least 8 characters")} secureTextEntry value={password} />
                   <ProfileField autoComplete="new-password" label={t("Confirm password")} onChangeText={setConfirmPassword} placeholder={t("Re-enter password")} secureTextEntry value={confirmPassword} />
                 </View>
-                <Text style={{ marginTop: 14, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
+                <Text style={{ marginTop: 14, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>
                   {t("We’ll email a verification code. After that, sign in with your password.")}
                 </Text>
                 <View style={{ marginTop: 18 }}>
@@ -526,7 +529,7 @@ export default function RegisterScreen() {
                         )}
                   </Text>
                 </Pressable>
-                <Text style={{ marginTop: 12, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17, textAlign: "center" }}>
+                <Text style={{ marginTop: 12, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17, textAlign: "center" }}>
                   {isMockAuthEnabled
                     ? t("Development mode: use 123456 to continue to role and profile setup.")
                     : t("Check your inbox for the 6-digit code.")}
@@ -555,7 +558,7 @@ export default function RegisterScreen() {
 
             {!isProfileSetup ? (
               <View style={{ marginTop: 22, flexDirection: "row", justifyContent: "center" }}>
-                <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
                   {t("Already have an account? ")}
                 </Text>
                 <Link href="/(auth)/login" style={{ color: "#16A34A", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>

@@ -1,6 +1,26 @@
-# Backend API mapping (auth)
+# Backend API mapping (auth + market)
 
 **API root:** `EXPO_PUBLIC_API_URL` → `http://localhost:8000/api/v1`
+
+Set in `frontend/.env`:
+
+```env
+EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
+EXPO_PUBLIC_USE_MOCK_AUTH=false
+```
+
+## Market (NECC eggs)
+
+| Step | Frontend | Backend |
+|------|----------|---------|
+| Dashboard rates / ticker | `fetchMarketDashboard(zone?)` | `GET /market/dashboard` |
+| Zone chips | `fetchMarketZones` | `GET /market/zones?include_today=true` |
+| Save preferred city | `setMarketZonePreference` | `PATCH /market/zone-preference` |
+| Charts (optional) | `fetchEggTrend` | `GET /market/eggs/trend` |
+
+Egg card on the home dashboard uses live NECC data when signed in. Culls / broilers stay local demo until those APIs exist.
+
+**Auth required** for all `/market/*` routes (Bearer access token).
 
 ## Login (aligned with backend)
 

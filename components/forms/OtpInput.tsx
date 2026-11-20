@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Platform, Text, TextInput, View } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 
 interface OtpInputProps {
   value: string;
@@ -11,6 +12,7 @@ interface OtpInputProps {
 const OTP_LENGTH = 6;
 
 export function OtpInput({ value, onChange, onComplete, error }: OtpInputProps) {
+  const { colors } = useAppTheme();
   const inputRefs = useRef<Array<TextInput | null>>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
@@ -82,9 +84,9 @@ export function OtpInput({ value, onChange, onComplete, error }: OtpInputProps) 
                 ? "#DC2626"
                 : focusedIndex === index
                   ? "#16A34A"
-                  : "#E2E8F0",
-              backgroundColor: "#FFFFFF",
-              color: "#0B2A5B",
+                  : colors.line,
+              backgroundColor: colors.card,
+              color: colors.primary,
               fontFamily: "Poppins_600SemiBold",
               fontSize: 20,
               textAlign: "center",

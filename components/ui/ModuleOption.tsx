@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -29,6 +30,7 @@ export function ModuleOption({
   trailingContent,
 }: ModuleOptionProps) {
   const { t } = useLanguage();
+  const { colors } = useAppTheme();
   return (
     <Pressable
       accessibilityLabel={t(accessibilityLabel)}
@@ -40,9 +42,9 @@ export function ModuleOption({
         flexDirection: "row",
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#E2E8F0",
+        borderColor: colors.line,
         borderRadius: 16,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: colors.card,
         paddingHorizontal: 12,
         paddingVertical: 10,
       }}
@@ -60,7 +62,7 @@ export function ModuleOption({
         <Ionicons color={color} name={icon} size={19} />
       </View>
       <View style={{ flex: 1, marginLeft: 10 }}>
-        <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+        <Text style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
           {t(title)}
         </Text>
         {subtitle ? (
@@ -68,7 +70,7 @@ export function ModuleOption({
             numberOfLines={2}
             style={{
               marginTop: 2,
-              color: "#64748B",
+              color: colors.muted,
               fontFamily: "Poppins_400Regular",
               fontSize: 10,
               lineHeight: 15,
@@ -79,7 +81,7 @@ export function ModuleOption({
         ) : null}
       </View>
       {trailingContent}
-      {showChevron ? <Ionicons color="#94A3B8" name="chevron-forward" size={17} /> : null}
+      {showChevron ? <Ionicons color={colors.muted} name="chevron-forward" size={17} /> : null}
     </Pressable>
   );
 }

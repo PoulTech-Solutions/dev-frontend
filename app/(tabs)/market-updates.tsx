@@ -9,6 +9,7 @@ import { ModuleOption } from "../../components/ui/ModuleOption";
 import { RateSparkline } from "../../components/ui/RateSparkline";
 import { rateDelta, useAdminDemoStore } from "../../store/useAdminDemoStore";
 import { useAppLayout } from "../../hooks/useAppLayout";
+import { pageToneColor } from "../../components/ui/SectionTitle";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 
@@ -21,7 +22,8 @@ const RATE_CATEGORIES = [
 
 export default function MarketUpdatesScreen() {
   const { width } = useAppLayout();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("amber", isDark, colors.page);
   const { t } = useLanguage();
   const { category: requestedCategory } = useLocalSearchParams<{ category?: string }>();
   const rates = useAdminDemoStore((state) => state.rates);
@@ -32,17 +34,17 @@ export default function MarketUpdatesScreen() {
   const selected = RATE_CATEGORIES.find((item) => item.title === selectedCategory);
   const selectedRate = selected ? rates.find((rate) => rate.id === selected.id) : undefined;
   const selectedDelta = selectedRate ? rateDelta(selectedRate.month) : 0;
-  const selectedTrendColor = selectedDelta > 0 ? "#15803D" : selectedDelta < 0 ? "#B91C1C" : "#64748B";
+  const selectedTrendColor = selectedDelta > 0 ? "#15803D" : selectedDelta < 0 ? "#B91C1C" : colors.muted;
 
   useEffect(() => {
     setSelectedCategory(RATE_CATEGORIES.find((item) => item.id === requestedCategory)?.title ?? null);
   }, [requestedCategory]);
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <View style={{ width: "100%", maxWidth: contentWidth, alignSelf: "center" }}>
-          <ModuleHeader title="Poultry info & updates" subtitle="Market rates and poultry business updates." />
+          <ModuleHeader title="Poultry info & updates" subtitle="Market rates and poultry business updates." tone="amber" />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             {RATE_CATEGORIES.map((item) => (
               <View key={item.title} style={{ width: width >= 760 ? "48.5%" : "100%" }}>
@@ -58,10 +60,10 @@ export default function MarketUpdatesScreen() {
                     const rate = rates.find((entry) => entry.id === item.id);
                     if (!rate) return null;
                     const delta = rateDelta([Number(rate.previousValue), Number(rate.value)]);
-                    const trendColor = delta > 0 ? "#15803D" : delta < 0 ? "#B91C1C" : "#64748B";
+                    const trendColor = delta > 0 ? "#15803D" : delta < 0 ? "#B91C1C" : colors.muted;
                     return (
                       <View style={{ minWidth: 76, alignItems: "flex-end", marginLeft: 6 }}>
-                        <Text style={{ color: "#0F172A", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                        <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
                           ₹{rate.value}
                         </Text>
                         <RateSparkline color={trendColor} height={22} values={rate.history} width={66} />
@@ -75,33 +77,33 @@ export default function MarketUpdatesScreen() {
           </View>
           <View style={{ marginTop: 20 }}>
             {selected && selectedRate ? (
-              <View style={{ borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 20, backgroundColor: "#FFFFFF", padding: 18 }}>
+              <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 20, backgroundColor: colors.card, padding: 18 }}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <View style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: selected.background }}>
                     <Ionicons color={selected.color} name={selected.icon} size={20} />
                   </View>
                   <View style={{ marginLeft: 10 }}>
-                    <Text style={{ color: "#0B2A5B", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{t(selected.title)}</Text>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t(selectedRate.unit)}</Text>
+                    <Text style={{ color: colors.primary, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{t(selected.title)}</Text>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t(selectedRate.unit)}</Text>
                   </View>
                 </View>
                 <View style={{ marginTop: 18, flexDirection: width >= 600 ? "row" : "column", gap: 10 }}>
-                  <View style={{ flex: 1, borderRadius: 15, backgroundColor: "#F8FAFC", padding: 14 }}>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("Latest rate")}</Text>
-                    <Text style={{ marginTop: 4, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 24 }}>
+                  <View style={{ flex: 1, borderRadius: 15, backgroundColor: colors.cardSoft, padding: 14 }}>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("Latest rate")}</Text>
+                    <Text style={{ marginTop: 4, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 24 }}>
                       ₹{selectedRate.value}
                     </Text>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{selectedRate.unit}</Text>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{selectedRate.unit}</Text>
                   </View>
-                  <View style={{ flex: 1, borderRadius: 15, backgroundColor: "#F8FAFC", padding: 14 }}>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("Previous rate")}</Text>
-                    <Text style={{ marginTop: 4, color: "#334155", fontFamily: "Poppins_600SemiBold", fontSize: 20 }}>
+                  <View style={{ flex: 1, borderRadius: 15, backgroundColor: colors.cardSoft, padding: 14 }}>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("Previous rate")}</Text>
+                    <Text style={{ marginTop: 4, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 20 }}>
                       ₹{selectedRate.previousValue}
                     </Text>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{selectedRate.unit}</Text>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{selectedRate.unit}</Text>
                   </View>
-                  <View style={{ flex: 1, minHeight: 110, justifyContent: "center", overflow: "hidden", borderRadius: 15, backgroundColor: selectedDelta > 0 ? "#F0FDF4" : selectedDelta < 0 ? "#FEF2F2" : "#F8FAFC", padding: 14 }}>
-                    <Text style={{ color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("This month")}</Text>
+                  <View style={{ flex: 1, minHeight: 110, justifyContent: "center", overflow: "hidden", borderRadius: 15, backgroundColor: selectedDelta > 0 ? colors.promoBg : selectedDelta < 0 ? "#FEF2F2" : colors.cardSoft, padding: 14 }}>
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 10 }}>{t("This month")}</Text>
                     <View style={{ marginTop: 10 }}>
                       <RateSparkline color={selectedTrendColor} height={45} values={selectedRate.month} />
                     </View>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text } from "react-native";
+import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
@@ -21,6 +22,7 @@ export function Button({
   disabled = false,
   accessibilityLabel,
 }: ButtonProps) {
+  const { colors } = useAppTheme();
   const { t } = useLanguage();
   const isDisabled = disabled || loading;
   const [isPressed, setIsPressed] = useState(false);
@@ -52,11 +54,11 @@ export function Button({
                 : "#16A34A"
             : variant === "secondary"
               ? isPressed
-                ? "#F8FAFC"
-                : "#FFFFFF"
+                ? colors.cardSoft
+                : colors.card
               : "transparent",
         borderWidth: variant === "secondary" ? 1 : 0,
-        borderColor: variant === "secondary" ? "#E2E8F0" : "transparent",
+        borderColor: variant === "secondary" ? colors.line : "transparent",
         opacity: isDisabled && variant !== "primary" ? 0.55 : 1,
         transform: [{ scale: isPressed && !isDisabled ? 0.98 : 1 }],
         ...(variant === "primary"
@@ -73,12 +75,12 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           accessibilityLabel={t("Loading")}
-          color={variant === "primary" ? "#FFFFFF" : "#0B2A5B"}
+          color={variant === "primary" ? "#FFFFFF" : colors.primary}
         />
       ) : (
         <Text
           style={{
-            color: variant === "primary" ? "#FFFFFF" : "#0B2A5B",
+            color: variant === "primary" ? "#FFFFFF" : colors.primary,
             fontFamily: "Poppins_600SemiBold",
             fontSize: 15,
           }}

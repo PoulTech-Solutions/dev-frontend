@@ -1,40 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { FormModal } from "../../../components/ui/FormModal";
 import { ModuleHeader } from "../../../components/ui/ModuleHeader";
+import { pageToneColor } from "../../../components/ui/SectionTitle";
 import { ModuleOption } from "../../../components/ui/ModuleOption";
 import { PictureSymbol } from "../../../components/ui/PictureSymbol";
 import { useAppLayout } from "../../../hooks/useAppLayout";
 import { useAppTheme } from "../../../hooks/useAppTheme";
-import { loadFarms, saveFarm, type SavedFarm, type SavedShed } from "../../../services/localRecords";
+import { addShedToFarm, createShedRecord, loadFarms, saveFarm, type SavedFarm } from "../../../services/localRecords";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { useLanguage } from "../../../utils/i18n";
-
-const fieldStyle = {
-  minHeight: 48,
-  borderWidth: 1,
-  borderColor: "#E2E8F0",
-  borderRadius: 12,
-  paddingHorizontal: 12,
-  color: "#0F172A",
-  fontFamily: "Poppins_500Medium",
-} as const;
 
 export default function FarmRecordsScreen() {
   const router = useRouter();
   const { width } = useAppLayout();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("green", isDark, colors.page);
   const { t, n } = useLanguage();
   const userId = useAuthStore((state) => state.user?.id);
   const role = useAuthStore((state) => state.user?.role);
   const isCustomer = role === "customer";
   const [farms, setFarms] = useState<SavedFarm[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [openShed, setOpenShed] = useState<SavedShed | null>(null);
   const [farmOpen, setFarmOpen] = useState(false);
   const [shedOpen, setShedOpen] = useState(false);
   const [farmName, setFarmName] = useState("");
@@ -45,6 +36,16 @@ export default function FarmRecordsScreen() {
   const [eggs, setEggs] = useState("");
   const [note, setNote] = useState("");
   const columns = width >= 900 ? 3 : width >= 560 ? 2 : 1;
+  const fieldStyle = {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    color: colors.ink,
+    fontFamily: "Poppins_500Medium",
+    backgroundColor: colors.cardSoft,
+  } as const;
   const selected = farms.find((farm) => farm.id === selectedId) ?? farms[0];
 
   useEffect(() => {
@@ -78,17 +79,15 @@ export default function FarmRecordsScreen() {
       setNote("Enter the shed name and number of birds.");
       return;
     }
-    const shed: SavedShed = {
-      id: `shed-${Date.now()}`,
-      name: shedName.trim(),
-      birds: birds.trim(),
-      age: age.trim(),
-      eggs: eggs.trim(),
-      mortality: "",
-    };
-    const next = { ...selected, sheds: [...selected.sheds, shed] };
-    await saveFarm(next);
+    const shed = createShedRecord({
+      name: shedName,
+      birds,
+      age,
+      eggs,
+    });
+    const next = await addShedToFarm(selected, shed);
     setFarms((current) => current.map((farm) => (farm.id === next.id ? next : farm)));
+    setSelectedId(next.id);
     setShedName("");
     setBirds("");
     setAge("");
@@ -98,20 +97,26 @@ export default function FarmRecordsScreen() {
   };
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 28 }}>
         <View style={{ width: "100%", maxWidth: 1080, alignSelf: "center" }}>
           <ModuleHeader
             title={isCustomer ? "Farm" : "My Farm"}
             subtitle={isCustomer ? "Farm management tools are available to Poultry Owner accounts." : "Each farm can hold more than one shed."}
+            tone="green"
           />
 
           {isCustomer ? (
-            <EmptyState description="You can explore products and book services from the other sections." icon="information-circle-outline" title="This section is for farm owners" />
+            <EmptyState
+              description="You can explore products and book services from the other sections."
+              icon="information-circle-outline"
+              title="This section is for farm owners"
+              tone="green"
+            />
           ) : (
             <>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <Text style={{ flex: 1, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t("Farms")}</Text>
+                <Text style={{ flex: 1, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t("Farms")}</Text>
                 <Pressable accessibilityLabel={t("Add a farm")} onPress={() => setFarmOpen(true)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: "#15803D" }}>
                   <Ionicons color="#FFFFFF" name="add" size={26} />
                 </Pressable>
@@ -129,8 +134,8 @@ export default function FarmRecordsScreen() {
                       >
                         <PictureSymbol name="barn" size={56} />
                         <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-                          <Text numberOfLines={1} style={{ color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(farm.name)}</Text>
-                          <Text style={{ marginTop: 2, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 13 }}>{t(farm.place)} · {n(farm.sheds.length)} {t("Sheds")}</Text>
+                          <Text numberOfLines={1} style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(farm.name)}</Text>
+                          <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>{t(farm.place)} · {n(farm.sheds.length)} {t("Sheds")}</Text>
                         </View>
                       </Pressable>
                     </View>
@@ -141,8 +146,8 @@ export default function FarmRecordsScreen() {
               {selected ? (
                 <View style={{ marginTop: 18 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                    <Text style={{ flex: 1, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t(selected.name)}</Text>
-                    <Pressable accessibilityLabel={t("Add shed")} onPress={() => setShedOpen(true)} style={{ minHeight: 40, flexDirection: "row", alignItems: "center", borderRadius: 12, backgroundColor: "#0B2A5B", paddingHorizontal: 12 }}>
+                    <Text style={{ flex: 1, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 18 }}>{t(selected.name)}</Text>
+                    <Pressable accessibilityLabel={t("Add shed")} onPress={() => setShedOpen(true)} style={{ minHeight: 40, flexDirection: "row", alignItems: "center", borderRadius: 12, backgroundColor: isDark ? colors.headerBg : "#0B2A5B", paddingHorizontal: 12 }}>
                       <Ionicons color="#FFFFFF" name="add" size={18} />
                       <Text style={{ marginLeft: 4, color: "#FFFFFF", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>{t("Add shed")}</Text>
                     </Pressable>
@@ -150,10 +155,20 @@ export default function FarmRecordsScreen() {
                   <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -6 }}>
                     {selected.sheds.map((shed) => (
                       <View key={shed.id} style={{ width: columns === 3 ? "33.333%" : columns === 2 ? "50%" : "100%", padding: 6 }}>
-                        <Pressable onPress={() => setOpenShed(shed)} style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, padding: 14 }}>
+                        <Pressable
+                          onPress={() =>
+                            router.push(
+                              `/(tabs)/(farm)/shed-book?farmId=${encodeURIComponent(selected.id)}&shedId=${encodeURIComponent(shed.id)}` as Href,
+                            )
+                          }
+                          style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, padding: 14 }}
+                        >
                           <PictureSymbol name="chicken" size={64} />
-                          <Text style={{ marginTop: 10, color: "#0B2A5B", fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(shed.name)}</Text>
+                          <Text style={{ marginTop: 10, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(shed.name)}</Text>
                           <Text style={{ marginTop: 4, color: "#15803D", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{n(shed.birds)} {t("Live birds")}</Text>
+                          <Text style={{ marginTop: 6, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 11 }}>
+                            {t("Open record book")} · {n(shed.flockBook?.dailyRecords.length ?? 0)} {t("days")}
+                          </Text>
                         </Pressable>
                       </View>
                     ))}
@@ -192,23 +207,6 @@ export default function FarmRecordsScreen() {
         </View>
       </FormModal>
 
-      <FormModal onClose={() => setOpenShed(null)} title={openShed?.name ?? "Shed"} visible={openShed !== null}>
-        {openShed ? (
-          <View style={{ gap: 8 }}>
-            {[
-              ["Live birds", n(openShed.birds)],
-              ["Age", n(openShed.age)],
-              ["Egg count", n(openShed.eggs)],
-              ["Mortality", n(openShed.mortality)],
-            ].map(([label, value]) => (
-              <View key={label} style={{ flexDirection: "row", justifyContent: "space-between", borderRadius: 12, backgroundColor: colors.cardSoft, padding: 12 }}>
-                <Text style={{ color: "#64748B", fontFamily: "Poppins_500Medium", fontSize: 14 }}>{t(label)}</Text>
-                <Text style={{ color: "#0F172A", fontFamily: "Poppins_700Bold", fontSize: 14 }}>{value}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-      </FormModal>
     </SafeAreaView>
   );
 }

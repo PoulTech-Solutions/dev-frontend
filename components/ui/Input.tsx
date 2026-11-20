@@ -2,6 +2,7 @@ import type { Ref, ReactNode } from "react";
 import { useState } from "react";
 import { Platform, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useAppTheme } from "../../hooks/useAppTheme";
 
 interface InputProps {
   label: string;
@@ -50,6 +51,7 @@ export function Input({
   returnKeyType,
   inputRef,
 }: InputProps) {
+  const { colors } = useAppTheme();
   const [isFocused, setIsFocused] = useState(false);
 
   return (
@@ -57,7 +59,7 @@ export function Input({
       <Text
         style={{
           marginBottom: 8,
-          color: "#0F172A",
+          color: colors.ink,
           fontFamily: "Poppins_600SemiBold",
           fontSize: 13,
         }}
@@ -71,8 +73,8 @@ export function Input({
           alignItems: "center",
           borderRadius: 14,
           borderWidth: error ? 1.5 : isFocused ? 1.5 : 1,
-          borderColor: error ? "#DC2626" : isFocused ? "#16A34A" : "#E2E8F0",
-          backgroundColor: "#F8FAFC",
+          borderColor: error ? "#DC2626" : isFocused ? "#16A34A" : colors.line,
+          backgroundColor: colors.cardSoft,
           paddingHorizontal: 16,
           ...(isFocused && !error
             ? {
@@ -94,10 +96,10 @@ export function Input({
               marginRight: 12,
               overflow: "hidden",
               borderRadius: 10,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
               paddingHorizontal: 10,
               paddingVertical: 7,
-              color: "#0B2A5B",
+              color: colors.primary,
               fontFamily: "Poppins_600SemiBold",
               fontSize: 13,
             }}
@@ -126,14 +128,14 @@ export function Input({
           }}
           onSubmitEditing={onSubmitEditing}
           placeholder={placeholder}
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={colors.muted}
           returnKeyType={returnKeyType}
           secureTextEntry={secureTextEntry}
           style={{
             height: 50,
             minWidth: 0,
             flex: 1,
-            color: "#0F172A",
+            color: colors.ink,
             fontFamily: "Poppins_400Regular",
             fontSize: 14,
             paddingVertical: 0,

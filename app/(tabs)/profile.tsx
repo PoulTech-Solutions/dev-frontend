@@ -6,26 +6,45 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanPicker } from "../../components/subscription/PlanPicker";
 import { Button } from "../../components/ui/Button";
+import { MainCard } from "../../components/ui/MainCard";
+import { ModuleHeader } from "../../components/ui/ModuleHeader";
+import { pageToneColor, SectionTitle, type CardTone } from "../../components/ui/SectionTitle";
 import { useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { getAuthErrorMessage, isMockAuthEnabled } from "../../hooks/useAuth";
 import { pickImage } from "../../services/pickImage";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import { useThemeStore, type AppAppearance } from "../../store/useThemeStore";
 import { planById } from "../../utils/subscriptionPlans";
-import { LANGUAGE_NAMES, useLanguage, type AppLanguage } from "../../utils/i18n";
+import { LANGUAGE_NAMES, useLanguage } from "../../utils/i18n";
 
-function SectionLabel({ title }: { title: string }) {
-  const { t } = useLanguage();
-  const { colors } = useAppTheme();
-  return <Text style={{ marginTop: 22, marginBottom: 8, color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(title)}</Text>;
+function SettingsCard({
+  children,
+  tone = "green",
+  style,
+}: {
+  children: ReactNode;
+  tone?: CardTone;
+  style?: object;
+}) {
+  return (
+    <MainCard tone={tone} style={[{ marginBottom: 14 }, style]}>
+      {children}
+    </MainCard>
+  );
 }
 
-function SettingsCard({ children }: { children: ReactNode }) {
+function DetailRow({ label, value }: { label: string; value: string }) {
   const { colors } = useAppTheme();
   return (
-    <View style={{ overflow: "hidden", borderWidth: 1, borderColor: colors.line, borderRadius: 18, backgroundColor: colors.card }}>
-      {children}
+    <View style={{ flex: 1, minWidth: "45%", paddingVertical: 6 }}>
+      <Text style={{ color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 11, textTransform: "uppercase" }}>
+        {label}
+      </Text>
+      <Text style={{ marginTop: 3, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
+        {value || "—"}
+      </Text>
     </View>
   );
 }
@@ -35,36 +54,42 @@ function Field({
   value,
   onChangeText,
   keyboardType = "default",
+  editable = true,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   keyboardType?: "default" | "email-address" | "phone-pad";
+  editable?: boolean;
 }) {
   const { t } = useLanguage();
   const { colors } = useAppTheme();
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-      <Text style={{ marginBottom: 6, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 12 }}>{label}</Text>
+    <View style={{ flex: 1, minWidth: "45%", paddingVertical: 6 }}>
+      <Text style={{ marginBottom: 6, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 11, textTransform: "uppercase" }}>
+        {label}
+      </Text>
       <TextInput
         accessibilityLabel={label}
         autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
         autoComplete={keyboardType === "email-address" ? "email" : "off"}
         autoCorrect={keyboardType !== "email-address"}
+        editable={editable}
         keyboardType={keyboardType}
         onChangeText={onChangeText}
         placeholder={`${t("Enter")} ${label}`}
         placeholderTextColor={colors.muted}
         style={{
-          minHeight: 48,
+          minHeight: 42,
           borderWidth: 1,
           borderColor: colors.line,
-          borderRadius: 12,
-          backgroundColor: colors.cardSoft,
-          paddingHorizontal: 12,
+          borderRadius: 10,
+          backgroundColor: editable ? colors.cardSoft : colors.page,
+          paddingHorizontal: 10,
           color: colors.ink,
           fontFamily: "Poppins_400Regular",
-          fontSize: 14,
+          fontSize: 13,
+          opacity: editable ? 1 : 0.9,
         }}
         value={value}
       />
@@ -72,19 +97,125 @@ function Field({
   );
 }
 
-function Divider() {
+function SimpleDropdown<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (next: T) => void;
+  hint?: string;
+}) {
   const { colors } = useAppTheme();
-  return <View style={{ height: 1, backgroundColor: colors.line, marginHorizontal: 16 }} />;
+  const [open, setOpen] = useState(false);
+  const selected = options.find((item) => item.value === value);
+
+  return (
+    <View style={{ marginTop: 2 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <Text style={{ flexShrink: 1, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 12, paddingRight: 8 }}>
+          {label}
+        </Text>
+        <View style={{ position: "relative", width: 148, flexShrink: 0 }}>
+          <Pressable
+            accessibilityRole="button"
+            className="cursor-pointer hover:bg-slate-50"
+            onPress={() => setOpen((current) => !current)}
+            style={{
+              minHeight: 36,
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderRadius: 8,
+              backgroundColor: colors.card,
+              paddingHorizontal: 12,
+            }}
+          >
+            <Text numberOfLines={1} style={{ flex: 1, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+              {selected?.label ?? "—"}
+            </Text>
+            <Ionicons color={colors.muted} name={open ? "chevron-up" : "chevron-down"} size={14} style={{ marginLeft: 6 }} />
+          </Pressable>
+          {open ? (
+            <View
+              style={{
+                position: "absolute",
+                top: 40,
+                left: 0,
+                right: 0,
+                zIndex: 30,
+                borderWidth: 1,
+                borderColor: colors.line,
+                borderRadius: 8,
+                backgroundColor: colors.card,
+                overflow: "hidden",
+              }}
+            >
+              {options.map((item, index) => {
+                const active = item.value === value;
+                return (
+                  <Pressable
+                    key={item.value}
+                    accessibilityRole="button"
+                    className="cursor-pointer hover:bg-green-50"
+                    onPress={() => {
+                      onChange(item.value);
+                      setOpen(false);
+                    }}
+                    style={{
+                      minHeight: 36,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 12,
+                      backgroundColor: active ? colors.promoBg : "transparent",
+                      borderTopWidth: index === 0 ? 0 : 1,
+                      borderTopColor: colors.line,
+                    }}
+                  >
+                    <Text style={{ flex: 1, color: active ? colors.accent : colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                      {item.label}
+                    </Text>
+                    {active ? <Ionicons color={colors.accent} name="checkmark" size={14} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+      </View>
+      {hint ? (
+        <Text
+          style={{
+            marginTop: open ? 12 + options.length * 36 : 10,
+            color: colors.muted,
+            fontFamily: "Poppins_400Regular",
+            fontSize: 11,
+            lineHeight: 16,
+            paddingRight: 4,
+          }}
+        >
+          {hint}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { width } = useAppLayout();
   const { t, language, setLanguage, n } = useLanguage();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const pageBg = pageToneColor("navy", isDark, colors.page);
   const user = useAuthStore((state) => state.user);
   const completeProfile = useAuthStore((state) => state.completeProfile);
   const setUser = useAuthStore((state) => state.setUser);
+  const signOut = useAuthStore((state) => state.signOut);
   const planId = useSubscriptionStore((state) => state.planId);
   const renewsAt = useSubscriptionStore((state) => state.renewsAt);
   const hydratePlan = useSubscriptionStore((state) => state.hydrate);
@@ -100,7 +231,9 @@ export default function ProfileScreen() {
   const [message, setMessage] = useState("");
   const [photoNote, setPhotoNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const contentWidth = Math.min(Math.max(0, width - 36), 1080);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
+  const contentWidth = Math.min(Math.max(0, width - 36), 920);
   const plan = planById(planId);
   const renewLabel = renewsAt
     ? new Date(renewsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
@@ -135,26 +268,50 @@ export default function ProfileScreen() {
     }
     setIsSaving(true);
     try {
-      await completeProfile({
-        name,
-        email,
-        phone,
-        farmName: user.role === "poultry_owner" ? farmName : undefined,
-        city,
-        state,
-        photoUri: user.photoUri,
-        role: user.role,
-      });
+      const useBackend = !isMockAuthEnabled && !user.id.startsWith("mock-");
+      if (useBackend) {
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        const first_name = parts[0] ?? name.trim();
+        const last_name = parts.slice(1).join(" ") || first_name;
+        const { patchMyProfile } = await import("../../services/authService");
+        const updated = await patchMyProfile({
+          first_name,
+          last_name,
+          phone: phone.trim() || undefined,
+          village_city: city.trim() || undefined,
+          state: state.trim() || undefined,
+          region: user.role === "poultry_owner" ? farmName.trim() || undefined : undefined,
+        });
+        await setUser({
+          ...updated,
+          photoUri: user.photoUri,
+          role: user.role ?? updated.role,
+          email: updated.email ?? (email.trim() || undefined),
+        });
+      } else {
+        await completeProfile({
+          name,
+          email,
+          phone,
+          farmName: user.role === "poultry_owner" ? farmName : undefined,
+          city,
+          state,
+          photoUri: user.photoUri,
+          role: user.role,
+        });
+      }
       setMessage("");
+      setEditingProfile(false);
     } catch (error) {
       console.error("Could not save profile changes.", error);
-      setMessage("Could not save your profile. Please try again.");
+      setMessage(getAuthErrorMessage(error));
     } finally {
       setIsSaving(false);
     }
   };
 
   const changePhoto = async () => {
+    if (!editingProfile) return;
     setPhotoNote("");
     try {
       const next = await pickImage();
@@ -167,7 +324,7 @@ export default function ProfileScreen() {
   };
 
   const removePhoto = async () => {
-    if (!user) return;
+    if (!editingProfile || !user) return;
     setPhotoNote("");
     try {
       await setUser({ ...user, photoUri: undefined });
@@ -177,242 +334,368 @@ export default function ProfileScreen() {
     }
   };
 
-  const selectLanguage = async (next: AppLanguage) => {
+  const handleLogout = async () => {
     try {
-      await setLanguage(next);
+      await signOut();
+      router.replace("/(auth)/login");
     } catch (error) {
-      console.error("Could not save the selected language.", error);
-      Alert.alert(t("Unable to change language"), t("Please try again."));
+      console.error("Could not sign out.", error);
+      Alert.alert(t("Unable to log out"), t("Please try again."));
     }
   };
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: colors.page }}>
+    <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: pageBg }}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator
       >
         <View style={{ width: "100%", maxWidth: contentWidth, alignSelf: "center" }}>
-          <Pressable
-            accessibilityLabel={t("Back to dashboard")}
-            accessibilityRole="button"
-            className="cursor-pointer"
-            onPress={() => router.replace("/(tabs)/dashboard")}
-            style={{ minHeight: 40, marginBottom: 14, flexDirection: "row", alignItems: "center", alignSelf: "flex-start" }}
-          >
-            <Ionicons color={colors.accent} name="arrow-back" size={18} />
-            <Text style={{ marginLeft: 7, color: colors.accent, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t("Dashboard")}</Text>
-          </Pressable>
+          <ModuleHeader
+            title="My settings"
+            subtitle="Manage your profile, appearance, language, and plan."
+            tone="navy"
+            leading={
+              <Pressable
+                accessibilityLabel={t("Back to dashboard")}
+                accessibilityRole="button"
+                className="cursor-pointer"
+                onPress={() => router.replace("/(tabs)/dashboard")}
+                style={{ minHeight: 36, marginBottom: 6, flexDirection: "row", alignItems: "center", alignSelf: "flex-start" }}
+              >
+                <Ionicons color={colors.accent} name="arrow-back" size={18} />
+                <Text style={{ marginLeft: 7, color: colors.accent, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                  {t("Dashboard")}
+                </Text>
+              </Pressable>
+            }
+            trailing={
+              <Pressable
+                accessibilityLabel={t("Log out")}
+                accessibilityRole="button"
+                className="cursor-pointer hover:bg-red-50"
+                onPress={() => void handleLogout()}
+                style={{
+                  minHeight: 40,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#FECACA",
+                  backgroundColor: "#FEF2F2",
+                  paddingHorizontal: 14,
+                }}
+              >
+                <Ionicons color="#B91C1C" name="log-out-outline" size={18} />
+                <Text style={{ color: "#B91C1C", fontFamily: "Poppins_700Bold", fontSize: 13 }}>{t("Log out")}</Text>
+              </Pressable>
+            }
+          />
 
-          <Text style={{ color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 28 }}>{t("My settings")}</Text>
-          <Text style={{ marginTop: 4, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 14, lineHeight: 21 }}>
-            {t("Manage your profile, appearance, language, and plan.")}
-          </Text>
-
-          <SectionLabel title="Profile" />
-          <SettingsCard>
-            <View style={{ paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 64, height: 64, borderRadius: 32, overflow: "hidden", backgroundColor: "#E7EFE5", alignItems: "center", justifyContent: "center" }}>
-                {user?.photoUri ? (
-                  <Image contentFit="cover" source={{ uri: user.photoUri }} style={{ width: 64, height: 64 }} />
+          <SettingsCard tone="green">
+            <SectionTitle
+              size="sm"
+              title="Profile"
+              tone="green"
+              trailing={
+                !editingProfile ? (
+                  <Pressable
+                    accessibilityLabel={t("Update profile")}
+                    className="cursor-pointer hover:bg-green-50"
+                    onPress={() => setEditingProfile(true)}
+                    style={{
+                      minHeight: 36,
+                      justifyContent: "center",
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.accent,
+                      backgroundColor: colors.promoBg,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.accent, fontFamily: "Poppins_700Bold", fontSize: 12, textTransform: "uppercase" }}>
+                      {t("Update profile")}
+                    </Text>
+                  </Pressable>
                 ) : (
-                  <Text style={{ color: "#14532D", fontFamily: "Poppins_700Bold", fontSize: 22 }}>
+                  <Pressable
+                    accessibilityLabel={t("Cancel")}
+                    className="cursor-pointer"
+                    onPress={() => {
+                      setEditingProfile(false);
+                      setName(user?.name ?? "");
+                      setEmail(user?.email ?? "");
+                      setPhone(user?.phone ?? "");
+                      setFarmName(user?.farmName ?? "");
+                      setCity(user?.city ?? "");
+                      setState(user?.state ?? "");
+                      setMessage("");
+                    }}
+                    style={{
+                      minHeight: 36,
+                      justifyContent: "center",
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t("Cancel")}</Text>
+                  </Pressable>
+                )
+              }
+            />
+
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  overflow: "hidden",
+                  backgroundColor: colors.promoBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {user?.photoUri ? (
+                  <Image contentFit="cover" source={{ uri: user.photoUri }} style={{ width: 56, height: 56 }} />
+                ) : (
+                  <Text style={{ color: colors.accent, fontFamily: "Poppins_700Bold", fontSize: 20 }}>
                     {(name || "?").trim().slice(0, 1).toUpperCase()}
                   </Text>
                 )}
               </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={{ color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 15 }}>{t("Photo")}</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 15 }}>{name || t("Your profile")}</Text>
                 <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
-                  {t("Add or change your profile photo")}
+                  {email || t("No email")}
                 </Text>
               </View>
-              <Pressable
-                accessibilityLabel={user?.photoUri ? t("Change") : t("Add")}
-                className="cursor-pointer"
-                onPress={() => void changePhoto()}
-                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.cardSoft, paddingHorizontal: 12, paddingVertical: 8 }}
-              >
-                <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t(user?.photoUri ? "Change" : "Add")}</Text>
-              </Pressable>
-              {user?.photoUri ? (
-                <Pressable
-                  accessibilityLabel={t("Remove photo")}
-                  className="cursor-pointer"
-                  onPress={() => void removePhoto()}
-                  style={{ marginLeft: 8, borderWidth: 1, borderColor: "#FECACA", borderRadius: 10, backgroundColor: "#FEF2F2", paddingHorizontal: 12, paddingVertical: 8 }}
-                >
-                  <Text style={{ color: "#B91C1C", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t("Remove")}</Text>
-                </Pressable>
+              {editingProfile ? (
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  <Pressable
+                    className="cursor-pointer"
+                    onPress={() => void changePhoto()}
+                    style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 }}
+                  >
+                    <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 11 }}>
+                      {t(user?.photoUri ? "Change" : "Add")}
+                    </Text>
+                  </Pressable>
+                  {user?.photoUri ? (
+                    <Pressable
+                      className="cursor-pointer"
+                      onPress={() => void removePhoto()}
+                      style={{ borderWidth: 1, borderColor: "#FECACA", borderRadius: 8, backgroundColor: "#FEF2F2", paddingHorizontal: 10, paddingVertical: 7 }}
+                    >
+                      <Text style={{ color: "#B91C1C", fontFamily: "Poppins_600SemiBold", fontSize: 11 }}>{t("Remove")}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
             </View>
             {photoNote ? (
-              <Text style={{ paddingHorizontal: 16, paddingBottom: 8, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(photoNote)}</Text>
+              <Text style={{ marginBottom: 8, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(photoNote)}</Text>
             ) : null}
-            <Divider />
-            <Field label={t("Full name")} onChangeText={setName} value={name} />
-            <Field keyboardType="email-address" label={t("Email address")} onChangeText={setEmail} value={email} />
-            <Field keyboardType="phone-pad" label={t("Phone number")} onChangeText={setPhone} value={phone} />
-            {user?.role === "poultry_owner" ? <Field label={t("Farm name")} onChangeText={setFarmName} value={farmName} /> : null}
-            <View style={{ flexDirection: "row" }}>
-              <View style={{ flex: 1 }}>
+
+            {editingProfile ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <Field label={t("Full name")} onChangeText={setName} value={name} />
+                <Field editable={false} keyboardType="email-address" label={t("Email address")} onChangeText={setEmail} value={email} />
+                <Field keyboardType="phone-pad" label={t("Phone number")} onChangeText={setPhone} value={phone} />
+                {user?.role === "poultry_owner" ? <Field label={t("Farm name")} onChangeText={setFarmName} value={farmName} /> : null}
                 <Field label={t("City")} onChangeText={setCity} value={city} />
-              </View>
-              <View style={{ flex: 1 }}>
                 <Field label={t("State")} onChangeText={setState} value={state} />
               </View>
-            </View>
+            ) : (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <DetailRow label={t("Full name")} value={name} />
+                <DetailRow label={t("Email address")} value={email} />
+                <DetailRow label={t("Phone number")} value={phone} />
+                {user?.role === "poultry_owner" ? <DetailRow label={t("Farm name")} value={farmName} /> : null}
+                <DetailRow label={t("City")} value={city} />
+                <DetailRow label={t("State")} value={state} />
+              </View>
+            )}
+
             {message ? (
-              <Text style={{ paddingHorizontal: 16, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(message)}</Text>
+              <Text style={{ marginTop: 8, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(message)}</Text>
             ) : null}
-            <View style={{ padding: 16 }}>
-              <Button accessibilityLabel="Save profile changes" label={t("Save changes")} loading={isSaving} onPress={() => void saveProfile()} />
-            </View>
+            {editingProfile ? (
+              <View style={{ marginTop: 12, alignSelf: "flex-start", minWidth: 180 }}>
+                <Button accessibilityLabel="Save profile changes" label={t("Save changes")} loading={isSaving} onPress={() => void saveProfile()} />
+              </View>
+            ) : null}
           </SettingsCard>
 
-          <SectionLabel title="Language" />
-          <SettingsCard>
-            <View style={{ padding: 14, gap: 8 }}>
-              <Text style={{ marginBottom: 4, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>{t("App language")}</Text>
-              {(["en", "hi", "mr"] as const).map((item) => {
-                const selected = language === item;
-                return (
+          <View
+            style={{
+              flexDirection: contentWidth >= 700 ? "row" : "column",
+              alignItems: "stretch",
+              gap: 14,
+              marginBottom: 14,
+            }}
+          >
+            <SettingsCard tone="blue" style={{ flex: 1, marginBottom: 0, minWidth: contentWidth >= 700 ? 0 : "100%" }}>
+              <SectionTitle size="sm" title="Language" tone="blue" />
+              <SimpleDropdown
+                hint={t("Changes labels across the app. Numbers follow your selected language.")}
+                label={t("App language")}
+                onChange={(next) => {
+                  void setLanguage(next).catch((error) => {
+                    console.error("Could not save the selected language.", error);
+                    Alert.alert(t("Unable to change language"), t("Please try again."));
+                  });
+                }}
+                options={(
+                  [
+                    ["en", LANGUAGE_NAMES.en],
+                    ["hi", LANGUAGE_NAMES.hi],
+                    ["mr", LANGUAGE_NAMES.mr],
+                  ] as const
+                ).map(([value, label]) => ({ value, label }))}
+                value={language}
+              />
+            </SettingsCard>
+
+            <SettingsCard tone="navy" style={{ flex: 1, marginBottom: 0, minWidth: contentWidth >= 700 ? 0 : "100%" }}>
+              <SectionTitle size="sm" title="Appearance" tone="navy" />
+              <SimpleDropdown
+                hint={t("Bright or dark look for the whole app. Changes apply immediately across all screens.")}
+                label={t("Theme")}
+                onChange={(next) => {
+                  void setAppearance(next as AppAppearance);
+                }}
+                options={[
+                  { value: "light", label: t("Light") },
+                  { value: "dark", label: t("Dark") },
+                ]}
+                value={appearance}
+              />
+            </SettingsCard>
+          </View>
+
+          <SettingsCard tone="amber">
+            <SectionTitle
+              size="sm"
+              title="Subscription"
+              tone="amber"
+              trailing={
+                !showPlanPicker ? (
                   <Pressable
-                    key={item}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    className="cursor-pointer"
-                    onPress={() => void selectLanguage(item)}
+                    accessibilityLabel={t("Update")}
+                    className="cursor-pointer hover:bg-green-50"
+                    onPress={() => setShowPlanPicker(true)}
                     style={{
-                      minHeight: 48,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      borderRadius: 12,
+                      minHeight: 36,
+                      justifyContent: "center",
+                      borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: selected ? colors.accent : colors.line,
-                      backgroundColor: selected ? (appearance === "dark" ? "#052E16" : "#DCFCE7") : colors.cardSoft,
-                      paddingHorizontal: 14,
+                      borderColor: plan.color,
+                      backgroundColor: plan.background,
+                      paddingHorizontal: 12,
                     }}
                   >
-                    <Text style={{ flex: 1, color: selected ? colors.accent : colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
-                      {LANGUAGE_NAMES[item]}
+                    <Text style={{ color: plan.color, fontFamily: "Poppins_700Bold", fontSize: 12, textTransform: "uppercase" }}>
+                      {t("Update")}
                     </Text>
-                    {selected ? <Ionicons color={colors.accent} name="checkmark-circle" size={18} /> : null}
                   </Pressable>
-                );
-              })}
-            </View>
-          </SettingsCard>
+                ) : (
+                  <Pressable
+                    className="cursor-pointer"
+                    onPress={() => setShowPlanPicker(false)}
+                    style={{ minHeight: 36, justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12 }}
+                  >
+                    <Text style={{ color: colors.muted, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>{t("Close")}</Text>
+                  </Pressable>
+                )
+              }
+            />
 
-          <SectionLabel title="Subscription" />
-          <SettingsCard>
-            <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(plan.name)}</Text>
-                  <Text style={{ marginTop: 4, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>{t(plan.summary)}</Text>
-                </View>
-                <View style={{ borderRadius: 10, backgroundColor: plan.background, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Text style={{ color: plan.color, fontFamily: "Poppins_700Bold", fontSize: 12 }}>{t(plan.name)}</Text>
-                </View>
-              </View>
-              <Text style={{ marginTop: 10, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>
-                ₹{n(plan.price)} {t(plan.period)} · {t("Renews on")} {renewLabel}
-              </Text>
-              <View style={{ marginTop: 12, gap: 6 }}>
-                {plan.features.map((feature) => (
-                  <View key={feature} style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Ionicons color={plan.color} name="checkmark-circle" size={16} />
-                    <Text style={{ marginLeft: 8, color: colors.ink, fontFamily: "Poppins_500Medium", fontSize: 13 }}>{t(feature)}</Text>
+            {!showPlanPicker ? (
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(plan.name)}</Text>
+                    <Text style={{ marginTop: 3, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>{t(plan.summary)}</Text>
                   </View>
-                ))}
+                  <View style={{ borderRadius: 10, backgroundColor: plan.background, paddingHorizontal: 10, paddingVertical: 5 }}>
+                    <Text style={{ color: plan.color, fontFamily: "Poppins_700Bold", fontSize: 12 }}>{t(plan.name)}</Text>
+                  </View>
+                </View>
+                <Text style={{ marginTop: 10, color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>
+                  ₹{n(plan.price)} {t(plan.period)} · {t("Renews on")} {renewLabel}
+                </Text>
+                <View style={{ marginTop: 10, gap: 5 }}>
+                  {plan.features.slice(0, 4).map((feature) => (
+                    <View key={feature} style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Ionicons color={plan.color} name="checkmark-circle" size={15} />
+                      <Text style={{ marginLeft: 7, color: colors.ink, fontFamily: "Poppins_500Medium", fontSize: 12 }}>{t(feature)}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-              <View style={{ marginTop: 14 }}>
+            ) : (
+              <View style={{ marginTop: 6 }}>
+                <Text style={{ marginBottom: 10, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                  {t("Choose the plan that fits your farm.")}
+                </Text>
                 <PlanPicker
                   onSelect={(next) => {
                     if (!user?.id) return;
-                    void choosePlan(user.id, next);
+                    void choosePlan(user.id, next).then(() => setShowPlanPicker(false));
                   }}
                   selected={planId}
                 />
               </View>
-            </View>
+            )}
           </SettingsCard>
 
-          <SectionLabel title="Appearance" />
-          <SettingsCard>
-            <View style={{ padding: 14 }}>
-              <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{t("Theme")}</Text>
-              <Text style={{ marginTop: 2, marginBottom: 10, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
-                {t("Bright or dark look for the whole app")}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {(
-                  [
-                    ["light", "Light"],
-                    ["dark", "Dark"],
-                  ] as const
-                ).map(([value, label]) => {
-                  const selected = appearance === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      className="cursor-pointer"
-                      onPress={() => void setAppearance(value as AppAppearance)}
+          <SettingsCard tone="teal">
+            <SectionTitle size="sm" title="Company" tone="teal" />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 }}>
+              {(
+                [
+                  ["Privacy policy", "/company/privacy", "shield-checkmark-outline"],
+                  ["Contact us", "/company/contact", "mail-outline"],
+                  ["Office address", "/company/office", "location-outline"],
+                ] as const
+              ).map(([title, href, icon]) => (
+                <View key={href} style={{ width: "33.333%", padding: 5 }}>
+                  <Pressable
+                    accessibilityLabel={t(title)}
+                    accessibilityRole="button"
+                    className="cursor-pointer hover:bg-slate-50"
+                    onPress={() => router.push(href as Href)}
+                    style={{
+                      minHeight: 96,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                      backgroundColor: colors.cardSoft,
+                      padding: 12,
+                    }}
+                  >
+                    <Ionicons color={colors.accent} name={icon} size={20} />
+                    <Text
                       style={{
-                        flex: 1,
-                        minHeight: 48,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: selected ? colors.accent : colors.line,
-                        backgroundColor: selected ? (appearance === "dark" ? "#052E16" : "#DCFCE7") : colors.cardSoft,
+                        marginTop: 10,
+                        color: colors.ink,
+                        fontFamily: "Poppins_700Bold",
+                        fontSize: 11,
+                        textTransform: "uppercase",
+                        lineHeight: 15,
                       }}
                     >
-                      <Text style={{ color: selected ? colors.accent : colors.ink, fontFamily: "Poppins_700Bold", fontSize: 14 }}>{t(label)}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          </SettingsCard>
-
-          <SectionLabel title="Company" />
-          <SettingsCard>
-            {(
-              [
-                ["Privacy policy", "/company/privacy", t("How we keep your farm data safe")],
-                ["Contact us", "/company/contact", t("Email the Poultech team")],
-                ["Office address", "/company/office", t("Pune, Maharashtra")],
-              ] as const
-            ).map(([title, href, subtitle], index, list) => (
-              <Pressable
-                key={href}
-                accessibilityLabel={t(title)}
-                accessibilityRole="button"
-                className="cursor-pointer"
-                onPress={() => router.push(href as Href)}
-                style={{
-                  minHeight: 64,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderBottomWidth: index === list.length - 1 ? 0 : 1,
-                  borderBottomColor: colors.line,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.ink, fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{t(title)}</Text>
-                  <Text style={{ marginTop: 2, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>{subtitle}</Text>
+                      {t(title)}
+                    </Text>
+                  </Pressable>
                 </View>
-                <Ionicons color={colors.muted} name="chevron-forward" size={18} />
-              </Pressable>
-            ))}
+              ))}
+            </View>
           </SettingsCard>
         </View>
       </ScrollView>

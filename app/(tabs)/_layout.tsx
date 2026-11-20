@@ -76,6 +76,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="(farm)/billing" options={{ href: null }} />
+      <Tabs.Screen name="(farm)/shed-book" options={{ href: null }} />
       <Tabs.Screen name="market-updates" options={{ href: null }} />
     </Tabs>
   );
