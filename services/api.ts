@@ -15,7 +15,7 @@ type RetryConfig = InternalAxiosRequestConfig & {
 
 const defaultApiRoot =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:8000/api/v1";
+  "http://54.153.143.186/:8000/api/v1";
 
 export const api = axios.create({
   baseURL: defaultApiRoot,
