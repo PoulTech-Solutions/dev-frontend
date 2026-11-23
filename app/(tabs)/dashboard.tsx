@@ -2,9 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { ImageBackground } from "expo-image";
 import { useFocusEffect, useRouter, type Href } from "expo-router";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AdminDashboard } from "../../components/admin/AdminDashboard";
+import { ApiConfigBanner } from "../../components/market/ApiConfigBanner";
+import { MarketHubPicker } from "../../components/market/MarketHubPicker";
+import { MarketLocationPrompt } from "../../components/market/MarketLocationPrompt";
 import { RateDetailModal, type RateCardId } from "../../components/market/RateDetailModal";
 import { PictureSymbol, type PictureName } from "../../components/ui/PictureSymbol";
 import { RateTicker } from "../../components/ui/RateTicker";
@@ -12,8 +15,8 @@ import { MainCard } from "../../components/ui/MainCard";
 import { pageToneColor, SectionTitle, type CardTone } from "../../components/ui/SectionTitle";
 import { useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { isMockAuthEnabled } from "../../hooks/useAuth";
 import { useMarketDashboard } from "../../hooks/useMarketDashboard";
+import { useMarketDemoMode } from "../../hooks/useMarketDemoMode";
 import {
   loadFarms,
   subscribeFarmsChanged,
@@ -32,6 +35,13 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { DEMO_PRODUCTS, DEMO_RAW_MATERIALS } from "../../utils/demoData";
 import { firstName } from "../../utils/displayName";
 import { useLanguage } from "../../utils/i18n";
+import { getApiErrorCode, getApiErrorMessage } from "../../utils/apiErrors";
+import {
+  isLiveMarketRateId,
+  MARKET_RATE_LAYOUT,
+  mergeLiveMarketRates,
+  parseMarketAmount,
+} from "../../utils/marketRates";
 
 type RateDetail = { id: RateCardId; window: RateWindow };
 
@@ -113,7 +123,7 @@ export default function DashboardScreen() {
   const pageBg = pageToneColor("green", isDark, theme.page);
   const user = useAuthStore((state) => state.user);
   const demoRates = useAdminDemoStore((state) => state.rates);
-  const demoMode = Boolean(user?.id.startsWith("mock-")) || isMockAuthEnabled;
+  const demoMode = useMarketDemoMode();
   const marketQuery = useMarketDashboard(null);
   const [rateDetail, setRateDetail] = useState<RateDetail | null>(null);
   const [farms, setFarms] = useState<SavedFarm[]>([]);
@@ -126,6 +136,7 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!demoMode) void marketQuery.refetch();
       if (!user?.id || user.role === "admin") return;
       let active = true;
       const refresh = () => {
@@ -147,27 +158,26 @@ export default function DashboardScreen() {
         active = false;
         unsubscribe();
       };
-    }, [user?.id, user?.role]),
+    }, [user?.id, user?.role, demoMode, marketQuery.refetch]),
   );
 
+  const marketErrorCode = getApiErrorCode(marketQuery.error);
+  const needsMarketLocation = !demoMode && marketErrorCode === "profile_location_required";
+  const missingProfileLocation =
+    !demoMode &&
+    Boolean(user) &&
+    !user?.pincode?.trim();
+  const zoneMatchStatus = marketQuery.data?.metadata.match_status;
+  const showLocationPrompt = missingProfileLocation || needsMarketLocation;
+  const showFallbackHubNotice =
+    !demoMode && zoneMatchStatus === "fallback" && Boolean(marketQuery.data?.metadata.selected_zone);
+  const marketLoading = !demoMode && marketQuery.isLoading;
+  const marketSyncMissing = !demoMode && marketErrorCode === "market_data_unavailable";
+
   const rates = useMemo((): AdminDemoRate[] => {
-    const liveEggs = marketQuery.data?.rates?.find((item) => item.id === "eggs");
-    if (!liveEggs) return demoRates;
-    return demoRates.map((rate) => {
-      if (rate.id !== "eggs") return rate;
-      return {
-        ...rate,
-        title: liveEggs.title || rate.title,
-        unit: liveEggs.unit || rate.unit,
-        value: liveEggs.value,
-        previousValue: liveEggs.previousValue,
-        nextValue: liveEggs.nextValue,
-        month: liveEggs.month?.length ? liveEggs.month : rate.month,
-        year: liveEggs.year?.length ? liveEggs.year : rate.year,
-        history: liveEggs.history?.length ? liveEggs.history : rate.history,
-      };
-    });
-  }, [demoRates, marketQuery.data]);
+    const layout = demoMode ? demoRates : MARKET_RATE_LAYOUT;
+    return mergeLiveMarketRates(layout, marketQuery.data, demoMode);
+  }, [demoRates, demoMode, marketQuery.data]);
 
   const liveZone =
     marketQuery.data?.metadata.resolved_zone ?? marketQuery.data?.metadata.selected_zone ?? null;
@@ -182,26 +192,36 @@ export default function DashboardScreen() {
   const previewProducts = DEMO_PRODUCTS.slice(0, 4);
 
   const tickerItems = useMemo(() => {
-    const fromApi = marketQuery.data?.ticker?.map((item) => ({
-      label: item.label,
-      value: item.value,
-      change: item.change,
-    }));
-    if (fromApi?.length) {
-      return [
-        ...fromApi,
-        ...DEMO_RAW_MATERIALS.map((item, index) => ({
-          label: item.name,
-          value: money(item.price),
-          change: [1, -0.5, 0.5, -1, 1.5, -0.5, 0][index] ?? 0,
-        })),
-      ];
+    if (!demoMode) {
+      const fromApi =
+        marketQuery.data?.ticker?.map((item) => ({
+          label: item.label,
+          value: item.value,
+          change: item.change,
+        })) ?? [];
+      if (fromApi.length) return fromApi;
+
+      return RATE_CARDS.filter((card) => card.id === "eggs" || card.id === "culls" || card.id === "broilers")
+        .map((card) => {
+          const rate = rates.find((item) => item.id === card.id);
+          const today = parseMarketAmount(rate?.value);
+          const yesterday = parseMarketAmount(rate?.previousValue);
+          if (today === null) return null;
+          return {
+            label: card.title,
+            value: money(today),
+            change:
+              today !== null && yesterday !== null ? Math.round((today - yesterday) * 10) / 10 : 0,
+          };
+        })
+        .filter((item): item is { label: string; value: string; change: number } => item !== null);
     }
+
     return [
       ...RATE_CARDS.map((card) => {
         const rate = rates.find((item) => item.id === card.id);
-        const today = Number(rate?.value);
-        const yesterday = Number(rate?.previousValue);
+        const today = parseMarketAmount(rate?.value) ?? 0;
+        const yesterday = parseMarketAmount(rate?.previousValue);
         return {
           label: card.title,
           value: money(Number.isFinite(today) ? today : 0),
@@ -217,7 +237,7 @@ export default function DashboardScreen() {
         change: [1, -0.5, 0.5, -1, 1.5, -0.5, 0][index] ?? 0,
       })),
     ];
-  }, [marketQuery.data?.ticker, rates]);
+  }, [demoMode, marketQuery.data?.ticker, rates]);
 
   const servicesGrid = (
     <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 }}>
@@ -269,6 +289,18 @@ export default function DashboardScreen() {
           paddingTop: sidebarVisible ? 18 : 10,
           paddingBottom: 28,
         }}
+        refreshControl={
+          <RefreshControl
+            refreshing={Boolean(marketQuery.isFetching && !marketQuery.isLoading)}
+            onRefresh={() => {
+              void (async () => {
+                const { ensureFreshAccessToken } = await import("../../services/api");
+                await ensureFreshAccessToken();
+                await marketQuery.refetch();
+              })();
+            }}
+          />
+        }
       >
         <View style={{ width: "100%", maxWidth: contentWidth, alignSelf: "center", gap: 22 }}>
           <MainCard padded={false} tone="plain">
@@ -299,17 +331,66 @@ export default function DashboardScreen() {
             </Pressable>
           </MainCard>
 
-          <SectionCard title="Poultry info and updates" subtitle="Today's egg, culls, broiler and feed rates" tone="amber">
+          <SectionCard
+            title="Poultry info and updates"
+            subtitle={demoMode ? "Today's egg, culls, broiler and feed rates" : undefined}
+            tone="amber"
+          >
+            <ApiConfigBanner />
+            {demoMode ? (
+              <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                {t("Demo mode — sample rates. Use real login with pincode for live NECC data.")}
+              </Text>
+            ) : null}
+            {showLocationPrompt ? <MarketLocationPrompt /> : null}
+            {!demoMode ? <MarketHubPicker selectedZone={liveZone} /> : null}
+            {showFallbackHubNotice ? (
+              <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                {t("No address yet — showing default NECC hub")}{" "}
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: theme.ink }}>
+                  {marketQuery.data?.metadata.selected_zone}
+                </Text>
+                {". "}
+                {t("Save a pincode above for a nearer centre, or pick one in the list.")}
+              </Text>
+            ) : null}
+            {marketSyncMissing ? (
+              <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>
+                {getApiErrorMessage(marketQuery.error) ?? t("Egg rates are not synced yet. Try again later.")}
+              </Text>
+            ) : null}
+            {!demoMode && marketQuery.error && !marketSyncMissing && !needsMarketLocation ? (
+              <Text style={{ marginBottom: 12, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 13 }}>
+                {getApiErrorMessage(marketQuery.error) ?? t("Could not load live rates.")}
+              </Text>
+            ) : null}
+            {marketLoading ? (
+              <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>
+                {t("Loading live egg rates…")}
+              </Text>
+            ) : null}
+            {!demoMode && marketQuery.data?.metadata.price_as_of && marketQuery.data.metadata.is_live_today === false ? (
+              <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                {t("Egg rate as of NECC sheet:")}{" "}
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: theme.ink }}>
+                  {marketQuery.data.metadata.price_as_of}
+                </Text>
+              </Text>
+            ) : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -6 }}>
               {RATE_CARDS.map((card) => {
                 const rate = rates.find((item) => item.id === card.id);
-                const yesterday = Number(rate?.previousValue);
-                const today = Number(rate?.value);
-                const tomorrow = Number(rate?.nextValue);
+                const yesterday = parseMarketAmount(rate?.previousValue);
+                const today = parseMarketAmount(rate?.value);
+                const tomorrow = parseMarketAmount(rate?.nextValue);
                 const monthDelta = rate ? rateDelta(rate.month) : 0;
                 const yearDelta = rate ? rateDelta(rate.year) : 0;
-                const isLiveEggs =
-                  card.id === "eggs" && Boolean(marketQuery.data?.rates?.some((item) => item.id === "eggs"));
+                const isLiveRate = isLiveMarketRateId(card.id, demoMode, marketQuery.data);
+                const rateUnavailable =
+                  !demoMode &&
+                  (card.id === "eggs" || card.id === "culls" || card.id === "broilers") &&
+                  !isLiveRate &&
+                  !marketLoading;
                 return (
                   <View
                     key={card.id}
@@ -352,9 +433,10 @@ export default function DashboardScreen() {
                             >
                               {t(card.title)}
                             </Text>
-                            {isLiveEggs ? (
+                            {isLiveRate ? (
                               <Text style={{ marginTop: 2, color: UP, fontFamily: "Poppins_600SemiBold", fontSize: 11 }}>
-                                NECC{liveZone ? ` · ${liveZone}` : ""}
+                                {card.id === "eggs" ? "NECC" : t("Live")}
+                                {liveZone ? ` · ${liveZone}` : ""}
                               </Text>
                             ) : null}
                           </View>
@@ -404,15 +486,23 @@ export default function DashboardScreen() {
                       </View>
 
                       <View style={{ padding: 12 }}>
-                        {rate ? (
+                        {rate && !rateUnavailable && today !== null ? (
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {(
                               [
-                                ["Yesterday", yesterday, theme.ink],
-                                ["Today", today, quoteColor(today, yesterday, theme.ink)],
-                                ["Tomorrow", tomorrow, quoteColor(tomorrow, today, theme.ink)],
-                              ] as const
-                            ).map(([label, value, color]) => (
+                                ["Yesterday", yesterday, theme.ink] as const,
+                                [
+                                  "Today",
+                                  today,
+                                  quoteColor(today, yesterday ?? today, theme.ink),
+                                ] as const,
+                                [
+                                  "Tomorrow",
+                                  tomorrow,
+                                  tomorrow !== null ? quoteColor(tomorrow, today, theme.ink) : theme.muted,
+                                ] as const,
+                              ]
+                            ).map(([label, amount, color]) => (
                               <View
                                 key={label}
                                 style={{
@@ -434,14 +524,32 @@ export default function DashboardScreen() {
                                   {t(label)}
                                 </Text>
                                 <Text style={{ marginTop: 4, color, fontFamily: "Poppins_700Bold", fontSize: 17 }}>
-                                  ₹{n(money(value))}
+                                  {amount !== null ? `₹${n(money(amount))}` : t("N/A")}
                                 </Text>
+                                {label === "Today" && today !== null && yesterday !== null ? (
+                                  <Text
+                                    style={{
+                                      marginTop: 4,
+                                      color: quoteColor(today, yesterday, theme.muted),
+                                      fontFamily: "Poppins_600SemiBold",
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    {today > yesterday
+                                      ? `↑ ₹${n(money(today - yesterday))}`
+                                      : today < yesterday
+                                        ? `↓ ₹${n(money(yesterday - today))}`
+                                        : t("No change")}
+                                  </Text>
+                                ) : null}
                               </View>
                             ))}
                           </View>
                         ) : (
                           <Text style={{ color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 14 }}>
-                            {t("Rate unavailable")}
+                            {rateUnavailable && needsMarketLocation && card.id === "eggs"
+                              ? t("Add pincode above")
+                              : t("N/A")}
                           </Text>
                         )}
                       </View>

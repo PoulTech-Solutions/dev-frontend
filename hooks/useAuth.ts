@@ -14,13 +14,10 @@ import {
   verifySignupEmail,
 } from "../services/authService";
 import type { AuthUser } from "../store/useAuthStore";
-import { isProductionBuild } from "../utils/runtime";
+import { isMockAuthEnabled as resolveMockAuthEnabled } from "../utils/apiConfig";
 
 /** Mock auth is dev-only; never enabled in production bundles (reverse-engineering safety). */
-export const isMockAuthEnabled =
-  !isProductionBuild &&
-  (process.env.EXPO_PUBLIC_USE_MOCK_AUTH === "true" ||
-    (process.env.EXPO_PUBLIC_USE_MOCK_AUTH !== "false" && !process.env.EXPO_PUBLIC_API_URL));
+export const isMockAuthEnabled = resolveMockAuthEnabled();
 
 export const DEMO_EMAIL = "demo@poultech.in";
 export const DEMO_PASSWORD = "Poultech123";

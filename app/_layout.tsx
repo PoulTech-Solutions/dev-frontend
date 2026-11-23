@@ -22,7 +22,18 @@ void SplashScreen.preventAutoHideAsync().catch((error: unknown) => {
 });
 
 export default function RootLayout() {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
+            retry: 1,
+          },
+        },
+      }),
+  );
   const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
@@ -31,6 +42,7 @@ export default function RootLayout() {
   });
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
+  const accessToken = useAuthStore((state) => state.accessToken);
   const appearance = useThemeStore((state) => state.appearance);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
 
@@ -42,6 +54,25 @@ export default function RootLayout() {
       console.error("Could not load the saved appearance.", error);
     });
   }, [hydrate, hydrateTheme]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    void (async () => {
+      const { msUntilAccessRefresh } = await import("../utils/accessToken");
+      const wait = msUntilAccessRefresh(accessToken);
+      if (wait === null) return;
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        void import("../services/api").then(({ ensureFreshAccessToken }) => ensureFreshAccessToken());
+      }, wait);
+    })();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     if (fontError) console.error("Could not load Poppins fonts.", fontError);

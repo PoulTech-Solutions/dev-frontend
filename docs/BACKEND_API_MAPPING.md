@@ -2,12 +2,36 @@
 
 **API root:** `EXPO_PUBLIC_API_URL` → `http://localhost:8000/api/v1`
 
-Set in `frontend/.env`:
+Local dev uses `http://localhost:8000/api/v1` by default (mock auth off). Copy `frontend/.env.example` → `frontend/.env` and set:
 
 ```env
 EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
 EXPO_PUBLIC_USE_MOCK_AUTH=false
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<matches backend GOOGLE_CLIENT_ID>
+EXPO_PUBLIC_GOOGLE_JS_ORIGINS=http://localhost:8081,http://127.0.0.1:8081,http://localhost:8088,http://127.0.0.1:8088
+EXPO_PUBLIC_APP_WEB_ORIGIN=http://localhost:8081
 ```
+
+- **:8081** (`npm run dev:web`) — use `APP_WEB_ORIGIN` with 8081; restart dev after `.env` edits.
+- **:8088** (Docker static) — set `APP_WEB_ORIGIN=http://127.0.0.1:8088` in `.env` before `docker compose --env-file ../.env up --build`, or use `frontend/.env.production` / `env.production.example` as a template.
+
+## Geo (India pincode)
+
+| Step | Frontend | Backend |
+|------|----------|---------|
+| Typeahead | `searchPincodes(q)` | `GET /geo/pincodes/search?q=` (min 3 digits) |
+| Profile save | `patchMyProfile({ pincode })` | Validates + fills state/district/tehsil |
+
+## Location → egg hub (backend)
+
+| Step | Behaviour |
+|------|-----------|
+| Profile `pincode` + `state` + `district` | Required for `/market/dashboard` (no silent demo) |
+| Resolver | Pincode → profile fields → `resolve_zone_name()` → NECC **hub** |
+| No exact city | **Nearest hub in state** (`state_nearest`, e.g. Pune profile → Mumbai if Pune not synced) / fallback — override via egg **Regions** or `PATCH /market/zone-preference` |
+| GPS (web) | **Use my location** → pincode via Nominatim → `GET /geo/pincodes/{pincode}` → `PATCH /me/profile` |
+
+Eggs need **NECC sync** in the API DB; culls/broilers need staff rates for that hub.
 
 ## Market (NECC eggs)
 
@@ -18,7 +42,17 @@ EXPO_PUBLIC_USE_MOCK_AUTH=false
 | Save preferred city | `setMarketZonePreference` | `PATCH /market/zone-preference` |
 | Charts (optional) | `fetchEggTrend` | `GET /market/eggs/trend` |
 
-Egg card on the home dashboard uses live NECC data when signed in. Culls / broilers stay local demo until those APIs exist.
+Home dashboard and **market-updates** merge live cards when signed in (`EXPO_PUBLIC_USE_MOCK_AUTH=false`):
+
+| Card | API source |
+|------|------------|
+| Eggs | NECC sync → `GET /market/dashboard` |
+| Culls / broilers | Staff `PUT /market/admin/poultry-rates` → same dashboard |
+| Feed | Still local demo (no backend yet) |
+
+With `EXPO_PUBLIC_USE_MOCK_AUTH=false`, eggs / culls / broilers **never** use `useAdminDemoStore` prices — only `GET /market/dashboard` (empty UI until data exists).
+
+**Staff / admin:** Admin dashboard shows **Save hub rates** (`upsertPoultryRates` → `PUT /market/admin/poultry-rates`) for roles `staff`, `admin`, `super_admin`.
 
 **Auth required** for all `/market/*` routes (Bearer access token).
 

@@ -19,6 +19,7 @@ export interface TokenPayload {
   session_id?: string;
   must_change_password?: boolean;
   must_verify_email?: boolean;
+  refresh_token?: string;
 }
 
 export interface LoginChallengeOptions {
@@ -112,16 +113,13 @@ export async function verifyLoginOtp(
   return data;
 }
 
-/** Rotate access token using HttpOnly refresh cookie (requires prior sign-in). */
-export async function refreshAccessToken(): Promise<TokenPayload> {
-  const { data } = await api.post<TokenPayload>(
-    "/auth/refresh",
-    {},
-    {
-      headers: { "X-Poultech-Refresh": "1" },
-      skipAuthRefresh: true,
-    },
-  );
+/** Rotate access token using HttpOnly refresh cookie (web) or body token (native). */
+export async function refreshAccessToken(refreshToken?: string | null): Promise<TokenPayload> {
+  const body = refreshToken ? { refresh_token: refreshToken } : {};
+  const { data } = await api.post<TokenPayload>("/auth/refresh", body, {
+    headers: { "X-Poultech-Refresh": "1" },
+    skipAuthRefresh: true,
+  });
   return data;
 }
 
@@ -151,15 +149,31 @@ export async function googleLogin(idToken: string): Promise<AuthResponse> {
   };
 }
 
+export async function changePassword(body: {
+  current_password: string;
+  password: string;
+  confirm_password: string;
+}): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>("/auth/password/change", body);
+  return data;
+}
+
 export async function patchMyProfile(body: {
   first_name?: string;
   last_name?: string;
   phone?: string;
   village_city?: string;
   state?: string;
+  district?: string;
+  tehsil?: string;
+  pincode?: string;
   region?: string;
 }): Promise<AuthUser> {
-  const { data } = await api.patch<Record<string, unknown>>("/me/profile", body);
+  const payload: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (typeof value === "string" && value.trim()) payload[key] = value.trim();
+  }
+  const { data } = await api.patch<Record<string, unknown>>("/me/profile", payload);
   return mapProfileToAuthUser(data);
 }
 

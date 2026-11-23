@@ -11,8 +11,13 @@ export interface AuthUser {
   farmName?: string;
   city?: string;
   state?: string;
+  district?: string;
+  tehsil?: string;
+  pincode?: string;
   photoUri?: string;
   role?: UserRole | null;
+  /** Raw RBAC name from API (`staff`, `farm_owner`, …). */
+  backendRole?: string;
   isProfileComplete?: boolean;
   mustVerifyEmail?: boolean;
 }
@@ -22,6 +27,7 @@ export type SelfSelectedRole = Exclude<UserRole, "admin">;
 interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
   isRemembered: boolean;
@@ -31,6 +37,7 @@ interface AuthState {
     user: AuthUser,
     accessToken: string,
     rememberMe?: boolean,
+    refreshToken?: string | null,
   ) => Promise<void>;
   setRole: (role: UserRole) => Promise<void>;
   completeProfile: (profile: {
@@ -40,16 +47,20 @@ interface AuthState {
     farmName?: string;
     city?: string;
     state?: string;
+    district?: string;
+    tehsil?: string;
+    pincode?: string;
     photoUri?: string;
     role: UserRole;
   }) => Promise<void>;
   signOut: () => Promise<void>;
-  setAccessToken: (accessToken: string) => Promise<void>;
+  setAccessToken: (accessToken: string, refreshToken?: string | null) => Promise<void>;
 }
 
 const initialSession = {
   user: null,
   accessToken: null,
+  refreshToken: null as string | null,
   isAuthenticated: false,
 };
 
@@ -59,16 +70,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isRemembered: false,
   hydrate: async () => {
     try {
-      const { loadAuthSession, clearAuthSession } = await import("../services/authStorage");
+      const { loadAuthSession, clearAuthSession, saveAuthSession } = await import("../services/authStorage");
+      const { refreshAccessToken, fetchProfile } = await import("../services/authService");
       const session = await loadAuthSession();
       let accessToken = session.accessToken;
-      const remembered = Boolean(session.user);
+      let refreshToken = session.refreshToken ?? null;
+      let user = session.user;
+      const shouldRestore = Boolean(session.user) || Boolean(refreshToken);
 
-      if (Platform.OS === "web" && session.user && !accessToken) {
+      if (shouldRestore) {
         try {
-          const { refreshAccessToken } = await import("../services/authService");
-          const tokens = await refreshAccessToken();
+          const tokens = await refreshAccessToken(refreshToken);
           accessToken = tokens.access_token;
+          if (tokens.refresh_token) refreshToken = tokens.refresh_token;
+          user = await fetchProfile(tokens.access_token);
+          await saveAuthSession(
+            { user, accessToken, refreshToken },
+            { persist: Boolean(user) },
+          );
         } catch {
           await clearAuthSession();
           set({ ...initialSession, isHydrated: true, isRemembered: false });
@@ -77,10 +96,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set({
-        user: session.user,
+        user,
         accessToken,
-        isAuthenticated: Boolean(accessToken && session.user),
-        isRemembered: remembered,
+        refreshToken,
+        isAuthenticated: Boolean(accessToken && user),
+        isRemembered: Boolean(user),
         isHydrated: true,
       });
     } catch (error) {
@@ -97,13 +117,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     set({ user });
   },
-  completeSignIn: async (user, accessToken, rememberMe = true) => {
+  completeSignIn: async (user, accessToken, rememberMe = true, refreshToken?: string | null) => {
     const { clearAuthSession, saveAuthSession } = await import("../services/authStorage");
-    if (rememberMe) await saveAuthSession({ user, accessToken }, { persist: true });
+    const nextRefresh = refreshToken ?? get().refreshToken;
+    if (rememberMe) await saveAuthSession({ user, accessToken, refreshToken: nextRefresh }, { persist: true });
     else await clearAuthSession();
     set({
       user,
       accessToken,
+      refreshToken: nextRefresh,
       isAuthenticated: true,
       isRemembered: rememberMe,
     });
@@ -135,6 +157,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       farmName: profile.farmName?.trim() || undefined,
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
+      district: profile.district?.trim() || undefined,
+      tehsil: profile.tehsil?.trim() || undefined,
+      pincode: profile.pincode?.trim() || undefined,
       photoUri: profile.photoUri ?? currentUser.photoUri,
     };
     const { saveAuthSession } = await import("../services/authStorage");
@@ -160,12 +185,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await clearAuthSession();
     set({ ...initialSession, isHydrated: true, isRemembered: false });
   },
-  setAccessToken: async (accessToken) => {
+  setAccessToken: async (accessToken, refreshToken) => {
     const { saveAuthSession } = await import("../services/authStorage");
     const state = get();
+    const nextRefresh = refreshToken === undefined ? state.refreshToken : refreshToken;
     if (state.isRemembered && state.user) {
-      await saveAuthSession({ user: state.user, accessToken }, { persist: true });
+      await saveAuthSession(
+        { user: state.user, accessToken, refreshToken: nextRefresh },
+        { persist: true },
+      );
     }
-    set({ accessToken, isAuthenticated: Boolean(accessToken && state.user) });
+    set({
+      accessToken,
+      refreshToken: nextRefresh,
+      isAuthenticated: Boolean(accessToken && state.user),
+    });
   },
 }));

@@ -21,8 +21,8 @@ function TickerRow({ items }: { items: TickerItem[] }) {
             <Text style={{ color: "#E2E8F0", fontFamily: "Poppins_600SemiBold", fontSize: 13 }}>{t(item.label)}</Text>
             <Text style={{ marginLeft: 8, color: "#FFFFFF", fontFamily: "Poppins_700Bold", fontSize: 13 }}>₹{n(item.value)}</Text>
             <Text style={{ marginLeft: 6, color: tone, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
-              {item.change > 0 ? "+" : ""}
-              {n(item.change)}
+              {up ? "↑ +" : down ? "↓ " : ""}
+              {up || down ? `₹${n(Math.abs(item.change))}` : "—"}
             </Text>
             <Text style={{ marginLeft: 16, color: "#64748B", fontFamily: "Poppins_400Regular", fontSize: 12 }}>|</Text>
           </View>

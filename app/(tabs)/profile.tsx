@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter, type Href } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +13,12 @@ import { pageToneColor, SectionTitle, type CardTone } from "../../components/ui/
 import { useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getAuthErrorMessage, isMockAuthEnabled } from "../../hooks/useAuth";
+import { getApiErrorMessage } from "../../utils/apiErrors";
+import { BACKEND_PASSWORD_HINT, BACKEND_PASSWORD_REGEX } from "../../utils/authValidation";
+import { isInternalAccount } from "../../utils/permissions";
+import { MarketLocationPrompt } from "../../components/market/MarketLocationPrompt";
+import { LocationCascade } from "../../components/profile/LocationCascade";
+import type { GeoPincodeItem } from "../../services/geoService";
 import { pickImage } from "../../services/pickImage";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
@@ -55,12 +62,14 @@ function Field({
   onChangeText,
   keyboardType = "default",
   editable = true,
+  secureTextEntry = false,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   keyboardType?: "default" | "email-address" | "phone-pad";
   editable?: boolean;
+  secureTextEntry?: boolean;
 }) {
   const { t } = useLanguage();
   const { colors } = useAppTheme();
@@ -71,11 +80,12 @@ function Field({
       </Text>
       <TextInput
         accessibilityLabel={label}
-        autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
+        autoCapitalize={keyboardType === "email-address" || secureTextEntry ? "none" : "words"}
         autoComplete={keyboardType === "email-address" ? "email" : "off"}
         autoCorrect={keyboardType !== "email-address"}
         editable={editable}
         keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
         onChangeText={onChangeText}
         placeholder={`${t("Enter")} ${label}`}
         placeholderTextColor={colors.muted}
@@ -228,11 +238,22 @@ export default function ProfileScreen() {
   const [farmName, setFarmName] = useState(user?.farmName ?? "");
   const [city, setCity] = useState(user?.city ?? "");
   const [state, setState] = useState(user?.state ?? "");
+  const [district, setDistrict] = useState(user?.district ?? "");
+  const [tehsil, setTehsil] = useState(user?.tehsil ?? "");
+  const [pincode, setPincode] = useState(user?.pincode ?? "");
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [photoNote, setPhotoNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordOk, setPasswordOk] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const profileLocked = isInternalAccount(user?.backendRole);
   const contentWidth = Math.min(Math.max(0, width - 36), 920);
   const plan = planById(planId);
   const renewLabel = renewsAt
@@ -250,10 +271,56 @@ export default function ProfileScreen() {
     setFarmName(user?.farmName ?? "");
     setCity(user?.city ?? "");
     setState(user?.state ?? "");
+    setDistrict(user?.district ?? "");
+    setTehsil(user?.tehsil ?? "");
+    setPincode(user?.pincode ?? "");
   }, [user]);
+
+  const onPincodePick = (item: GeoPincodeItem) => {
+    setState(item.state);
+    setDistrict(item.district);
+    if (item.tehsil) setTehsil(item.tehsil);
+    setPincode(/^[1-9][0-9]{5}$/.test(item.pincode) ? item.pincode : "");
+    if (item.district) setCity(item.district);
+  };
+
+  const savePassword = async () => {
+    setPasswordMessage("");
+    setPasswordOk(false);
+    if (!BACKEND_PASSWORD_REGEX.test(newPassword)) {
+      setPasswordMessage(BACKEND_PASSWORD_HINT);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage("New passwords do not match.");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const { changePassword } = await import("../../services/authService");
+      const result = await changePassword({
+        current_password: currentPassword,
+        password: newPassword,
+        confirm_password: confirmPassword,
+      });
+      setPasswordOk(true);
+      setPasswordMessage(result.message);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setPasswordMessage(getApiErrorMessage(error) ?? getAuthErrorMessage(error) ?? "Could not change password.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const saveProfile = async () => {
     setMessage("");
+    if (profileLocked) {
+      setMessage("Staff and admin accounts can change password only, not profile.");
+      return;
+    }
     if (!name.trim()) {
       setMessage("Full name is required.");
       return;
@@ -270,9 +337,8 @@ export default function ProfileScreen() {
     try {
       const useBackend = !isMockAuthEnabled && !user.id.startsWith("mock-");
       if (useBackend) {
-        const parts = name.trim().split(/\s+/).filter(Boolean);
-        const first_name = parts[0] ?? name.trim();
-        const last_name = parts.slice(1).join(" ") || first_name;
+        const { splitPersonName } = await import("../../utils/personName");
+        const { first_name, last_name } = splitPersonName(name);
         const { patchMyProfile } = await import("../../services/authService");
         const updated = await patchMyProfile({
           first_name,
@@ -280,8 +346,12 @@ export default function ProfileScreen() {
           phone: phone.trim() || undefined,
           village_city: city.trim() || undefined,
           state: state.trim() || undefined,
+          district: district.trim() || undefined,
+          tehsil: tehsil.trim() || undefined,
+          pincode: pincode.trim() || undefined,
           region: user.role === "poultry_owner" ? farmName.trim() || undefined : undefined,
         });
+        await queryClient.invalidateQueries({ queryKey: ["market"] });
         await setUser({
           ...updated,
           photoUri: user.photoUri,
@@ -400,7 +470,7 @@ export default function ProfileScreen() {
               title="Profile"
               tone="green"
               trailing={
-                !editingProfile ? (
+                profileLocked ? undefined : !editingProfile ? (
                   <Pressable
                     accessibilityLabel={t("Update profile")}
                     className="cursor-pointer hover:bg-green-50"
@@ -501,14 +571,31 @@ export default function ProfileScreen() {
               <Text style={{ marginBottom: 8, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(photoNote)}</Text>
             ) : null}
 
-            {editingProfile ? (
+            {profileLocked ? (
+              <Text style={{ marginBottom: 8, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                {t("Staff and admin can change password only. Profile details stay as registered.")}
+              </Text>
+            ) : null}
+
+            {editingProfile && !profileLocked ? (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 <Field label={t("Full name")} onChangeText={setName} value={name} />
                 <Field editable={false} keyboardType="email-address" label={t("Email address")} onChangeText={setEmail} value={email} />
                 <Field keyboardType="phone-pad" label={t("Phone number")} onChangeText={setPhone} value={phone} />
                 {user?.role === "poultry_owner" ? <Field label={t("Farm name")} onChangeText={setFarmName} value={farmName} /> : null}
                 <Field label={t("City")} onChangeText={setCity} value={city} />
-                <Field label={t("State")} onChangeText={setState} value={state} />
+                {!pincode.trim() ? (
+                  <View style={{ width: "100%" }}>
+                    <MarketLocationPrompt compact />
+                  </View>
+                ) : null}
+                <LocationCascade
+                  district={district}
+                  editable
+                  onSelect={onPincodePick}
+                  pincode={pincode}
+                  state={state}
+                />
               </View>
             ) : (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -517,6 +604,8 @@ export default function ProfileScreen() {
                 <DetailRow label={t("Phone number")} value={phone} />
                 {user?.role === "poultry_owner" ? <DetailRow label={t("Farm name")} value={farmName} /> : null}
                 <DetailRow label={t("City")} value={city} />
+                <DetailRow label={t("Pincode")} value={pincode} />
+                <DetailRow label={t("District")} value={district} />
                 <DetailRow label={t("State")} value={state} />
               </View>
             )}
@@ -524,12 +613,46 @@ export default function ProfileScreen() {
             {message ? (
               <Text style={{ marginTop: 8, color: "#B91C1C", fontFamily: "Poppins_400Regular", fontSize: 12 }}>{t(message)}</Text>
             ) : null}
-            {editingProfile ? (
+            {editingProfile && !profileLocked ? (
               <View style={{ marginTop: 12, alignSelf: "flex-start", minWidth: 180 }}>
                 <Button accessibilityLabel="Save profile changes" label={t("Save changes")} loading={isSaving} onPress={() => void saveProfile()} />
               </View>
             ) : null}
           </SettingsCard>
+
+          {profileLocked ? (
+            <SettingsCard tone="navy">
+              <SectionTitle size="sm" title="Password" tone="navy" />
+              <Text style={{ marginBottom: 8, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+                {t("Change your password. Other devices will be signed out.")}
+              </Text>
+              <View style={{ gap: 8 }}>
+                <Field label={t("Current password")} onChangeText={setCurrentPassword} secureTextEntry value={currentPassword} />
+                <Field label={t("New password")} onChangeText={setNewPassword} secureTextEntry value={newPassword} />
+                <Field label={t("Confirm new password")} onChangeText={setConfirmPassword} secureTextEntry value={confirmPassword} />
+              </View>
+              {passwordMessage ? (
+                <Text
+                  style={{
+                    marginTop: 8,
+                    color: passwordOk ? "#15803D" : "#B91C1C",
+                    fontFamily: "Poppins_400Regular",
+                    fontSize: 12,
+                  }}
+                >
+                  {t(passwordMessage)}
+                </Text>
+              ) : null}
+              <View style={{ marginTop: 12, alignSelf: "flex-start", minWidth: 180 }}>
+                <Button
+                  accessibilityLabel="Change password"
+                  label={t("Change password")}
+                  loading={isChangingPassword}
+                  onPress={() => void savePassword()}
+                />
+              </View>
+            </SettingsCard>
+          ) : null}
 
           <View
             style={{

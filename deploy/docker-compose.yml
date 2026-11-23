@@ -1,6 +1,6 @@
-# Production-like STATIC web only (expo export + nginx). No hot reload — rebuild after UI changes.
-# Dev with live UI: `cd frontend && npm run dev:web` (http://localhost:8081) or see docker-compose.dev.yml
-# From this folder: docker compose up --build → http://localhost:8088
+# Production-like STATIC web (expo export + nginx). No live reload — rebuild after UI changes.
+# Daily coding: docker compose -f docker-compose.dev.yml up -d  → same :8088, Metro Fast Refresh.
+# From this folder: docker compose up --build → http://localhost:8088 (snapshot only)
 # Build-time: pass vars from frontend/.env → docker compose --env-file ../.env up --build
 services:
   web:
@@ -8,14 +8,16 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       args:
-        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_WEB_API_URL:-/api/v1}
         EXPO_PUBLIC_USE_MOCK_AUTH: ${EXPO_PUBLIC_USE_MOCK_AUTH:-false}
         EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}
         EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI: ${EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI:-}
-        EXPO_PUBLIC_GOOGLE_JS_ORIGINS: ${EXPO_PUBLIC_GOOGLE_JS_ORIGINS:-}
-        EXPO_PUBLIC_APP_WEB_ORIGIN: ${EXPO_PUBLIC_APP_WEB_ORIGIN:-}
+        EXPO_PUBLIC_GOOGLE_JS_ORIGINS: ${EXPO_PUBLIC_GOOGLE_JS_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088}
+        EXPO_PUBLIC_APP_WEB_ORIGIN: ${EXPO_PUBLIC_APP_WEB_ORIGIN:-http://127.0.0.1:8088}
         EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:-}
         EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${FRONTEND_HOST_PORT:-8088}:80"
     restart: unless-stopped

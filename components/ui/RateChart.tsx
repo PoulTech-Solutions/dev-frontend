@@ -22,8 +22,9 @@ function place(points: ChartPoint[], width: number, height: number) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
+  const span = Math.max(points.length - 1, 1);
   return points.map((point, index) => ({
-    x: PAD + (index / (points.length - 1)) * (width - PAD * 2),
+    x: PAD + (index / span) * (width - PAD * 2),
     y: height - PAD - ((point.value - min) / range) * (height - PAD * 2),
   }));
 }
@@ -32,7 +33,7 @@ export function RateChart({ points, height, color, formatValue }: RateChartProps
   const { colors } = useAppTheme();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
-  if (points.length < 2) return null;
+  if (points.length < 1) return null;
 
   const spots = width > 8 ? place(points, width, height) : [];
   const line = spots.map((spot, index) => `${index === 0 ? "M" : "L"}${spot.x},${spot.y}`).join(" ");

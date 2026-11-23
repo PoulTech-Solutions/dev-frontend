@@ -11,6 +11,7 @@ const userRoles = new Set(["admin", "customer", "poultry_owner"]);
 export interface AuthSession {
   user: AuthUser | null;
   accessToken: string | null;
+  refreshToken?: string | null;
 }
 
 export interface SaveSessionOptions {
@@ -83,7 +84,7 @@ function writeWebProfile(user: AuthUser): void {
 export async function loadAuthSession(): Promise<AuthSession> {
   if (Platform.OS === "web") {
     const user = readWebProfile();
-    return { user, accessToken: null };
+    return { user, accessToken: null, refreshToken: null };
   }
 
   const value = await readNativeValue();
@@ -106,7 +107,12 @@ export async function loadAuthSession(): Promise<AuthSession> {
     (typeof session.accessToken === "string" || session.accessToken === null) &&
     (session.user === null || isAuthUser(session.user))
   ) {
-    return session as AuthSession;
+    const stored = session as AuthSession;
+    return {
+      user: stored.user,
+      accessToken: stored.accessToken,
+      refreshToken: typeof stored.refreshToken === "string" ? stored.refreshToken : null,
+    };
   }
 
   logClientError("Stored session has an invalid shape; clearing it.", null);

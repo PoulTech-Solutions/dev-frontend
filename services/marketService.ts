@@ -45,6 +45,7 @@ export interface MarketDashboardResponse {
 
 export interface MarketZoneItem {
   name: string;
+  state?: string | null;
   today_value?: string | null;
   today_change?: number | null;
 }
@@ -62,7 +63,15 @@ export interface MarketTrendResponse {
   points: { date: string; value: number }[];
   year?: number | null;
   month?: number | null;
+  week?: number | null;
   sheet_average?: string | null;
+}
+
+export interface MarketCoverageResponse {
+  zone: string;
+  years: number[];
+  months: Record<string, number[]>;
+  weeks: Record<string, number[]>;
 }
 
 export async function fetchMarketDashboard(zone?: string): Promise<MarketDashboardResponse> {
@@ -89,7 +98,7 @@ export async function setMarketZonePreference(zone: string): Promise<{ market_pr
 export async function fetchEggTrend(
   zone: string,
   window: "days" | "month" | "year",
-  opts?: { year?: number; month?: number },
+  opts?: { year?: number; month?: number; week?: number },
 ): Promise<MarketTrendResponse> {
   const { data } = await api.get<MarketTrendResponse>("/market/eggs/trend", {
     params: {
@@ -97,7 +106,15 @@ export async function fetchEggTrend(
       window,
       ...(opts?.year != null ? { year: opts.year } : {}),
       ...(opts?.month != null ? { month: opts.month } : {}),
+      ...(opts?.week != null ? { week: opts.week } : {}),
     },
+  });
+  return data;
+}
+
+export async function fetchEggCoverage(zone: string): Promise<MarketCoverageResponse> {
+  const { data } = await api.get<MarketCoverageResponse>("/market/eggs/coverage", {
+    params: { zone },
   });
   return data;
 }
@@ -145,5 +162,62 @@ export async function fetchEggCompare(zones: string[]): Promise<MarketCompareRes
   const { data } = await api.get<MarketCompareResponse>("/market/eggs/compare", {
     params: { zones: zones.join(",") },
   });
+  return data;
+}
+
+export interface ManualPoultryRateUpsertRequest {
+  product: "culls" | "broilers";
+  zone: string;
+  today?: string;
+  yesterday?: string;
+  tomorrow?: string;
+}
+
+export interface ManualPoultryRateUpsertResponse {
+  product: string;
+  zone: string;
+  source: string;
+  today: string;
+  yesterday: string | null;
+  tomorrow: string | null;
+  today_source_date?: string | null;
+  yesterday_source_date?: string | null;
+  today_carried?: boolean;
+  yesterday_carried?: boolean;
+  today_editable?: boolean;
+  yesterday_editable?: boolean;
+  tomorrow_editable?: boolean;
+}
+
+export interface ManualPoultryRateReadResponse {
+  product: string;
+  zone: string;
+  source: string;
+  today: string | null;
+  yesterday: string | null;
+  tomorrow: string | null;
+  today_source_date?: string | null;
+  yesterday_source_date?: string | null;
+  today_carried?: boolean;
+  yesterday_carried?: boolean;
+  today_editable?: boolean;
+  yesterday_editable?: boolean;
+  tomorrow_editable?: boolean;
+}
+
+export async function fetchPoultryRates(
+  product: "culls" | "broilers",
+  zone: string,
+): Promise<ManualPoultryRateReadResponse> {
+  const { data } = await api.get<ManualPoultryRateReadResponse>("/market/admin/poultry-rates", {
+    params: { product, zone },
+  });
+  return data;
+}
+
+export async function upsertPoultryRates(
+  body: ManualPoultryRateUpsertRequest,
+): Promise<ManualPoultryRateUpsertResponse> {
+  const { data } = await api.put<ManualPoultryRateUpsertResponse>("/market/admin/poultry-rates", body);
   return data;
 }

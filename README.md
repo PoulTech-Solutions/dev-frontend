@@ -63,7 +63,7 @@ The app's screens are populated with demo/sample data so you can preview the mai
 | Poultry owner | `owner@poultech.in` | `PoultechOwner123` | Farm dashboard, records, billing, and seller tools |
 | Admin | `admin@poultech.in` | `PoultechAdmin123` | Admin overview, sample farm reports, and demo rate controls |
 
-With no `EXPO_PUBLIC_API_URL` set, mock authentication is enabled automatically in development. To set up local environment variables, copy `.env.example` to `.env`. Use `EXPO_PUBLIC_USE_MOCK_AUTH=true` to explicitly enable mock authentication, or set it to `false` to disable the development fallback.
+In development, the API defaults to `http://localhost:8000/api/v1` and mock auth stays **off** unless you set `EXPO_PUBLIC_USE_MOCK_AUTH=true`. Copy `.env.example` to `.env`, add your Google Web client ID, and set `EXPO_PUBLIC_APP_WEB_ORIGIN` to `http://localhost:8081` (dev) or `http://127.0.0.1:8088` (Docker static). For `:8088` builds see `env.production.example`.
 
 Demo farms, flock counts, products, service bookings, wallet activity, market rates, and admin reports are sample data—not live platform information. Most demo actions are previews and do not send changes to a backend. Admin rate edits are temporary. Invoices created from Billing are an exception: their PDF and invoice record are saved locally on the current device/browser for that demo user.
 

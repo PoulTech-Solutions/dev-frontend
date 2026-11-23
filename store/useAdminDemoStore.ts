@@ -86,7 +86,7 @@ const demoRates: AdminDemoRate[] = [
 export function rateSeries(rate: AdminDemoRate, window: RateWindow) {
   if (window === "month") return rate.month;
   if (window === "year") return rate.year;
-  return [Number(rate.previousValue), Number(rate.value), Number(rate.nextValue)];
+  return rate.history;
 }
 
 export function rateDelta(values: number[]) {
@@ -107,7 +107,7 @@ export function ratePoints(values: number[], window: RateWindow, today = new Dat
       value,
     }));
   }
-  const offset = window === "days" ? 1 : values.length - 1;
+  const offset = values.length - 1;
   return values.map((value, index) => ({ at: shiftDate(today, index - offset), value }));
 }
 

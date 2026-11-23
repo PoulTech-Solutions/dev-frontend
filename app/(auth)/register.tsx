@@ -34,6 +34,8 @@ import {
   isValidIndianMobile,
   loginPathAfterSignup,
 } from "../../utils/authValidation";
+import { LocationCascade } from "../../components/profile/LocationCascade";
+import type { GeoPincodeItem } from "../../services/geoService";
 
 const ROLES: {
   id: SelfSelectedRole;
@@ -130,6 +132,9 @@ export default function RegisterScreen() {
   const [farmName, setFarmName] = useState(user?.farmName ?? "");
   const [city, setCity] = useState(user?.city ?? "");
   const [state, setState] = useState(user?.state ?? "");
+  const [district, setDistrict] = useState(user?.district ?? "");
+  const [pincode, setPincode] = useState(user?.pincode ?? "");
+  const [tehsil, setTehsil] = useState(user?.tehsil ?? "");
   const [otp, setOtp] = useState("");
   const [selectedRole, setSelectedRole] = useState<SelfSelectedRole>("poultry_owner");
   const [message, setMessage] = useState("");
@@ -174,9 +179,8 @@ export default function RegisterScreen() {
 
     setIsSaving(true);
     try {
-      const parts = name.trim().split(/\s+/);
-      const firstName = parts[0] ?? "";
-      const lastName = parts.slice(1).join(" ") || "-";
+      const { splitPersonName } = await import("../../utils/personName");
+      const { first_name: firstName, last_name: lastName } = splitPersonName(name);
       if (isAuthenticated && !isMockAuthEnabled) {
         const { patchMyProfile } = await import("../../services/authService");
         const updated = await patchMyProfile({
@@ -185,6 +189,9 @@ export default function RegisterScreen() {
           phone: phone.replace(/\D/g, ""),
           village_city: city.trim() || undefined,
           state: state.trim() || undefined,
+          district: district.trim() || undefined,
+          tehsil: tehsil.trim() || undefined,
+          pincode: pincode.trim() || undefined,
           region: selectedRole === "poultry_owner" ? farmName.trim() || undefined : undefined,
         });
         const token = useAuthStore.getState().accessToken;
@@ -199,13 +206,15 @@ export default function RegisterScreen() {
         farmName: selectedRole === "poultry_owner" ? farmName : undefined,
         city,
         state,
+        district,
+        tehsil,
+        pincode,
         role: selectedRole,
       });
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not save your profile. Please try again.",
-      );
+      const { getAuthErrorMessage } = await import("../../hooks/useAuth");
+      setMessage(getAuthErrorMessage(error) || "Could not save your profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -430,14 +439,19 @@ export default function RegisterScreen() {
                   {selectedRole === "poultry_owner" ? (
                     <ProfileField autoComplete="off" label={t("Farm name")} onChangeText={setFarmName} placeholder={t("Your farm or business name")} value={farmName} />
                   ) : null}
-                  <View style={{ flexDirection: "row", gap: 12 }}>
-                    <View style={{ flex: 1 }}>
-                      <ProfileField autoComplete="off" label={t("City")} onChangeText={setCity} placeholder={t("City")} value={city} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ProfileField autoComplete="off" label={t("State")} onChangeText={setState} placeholder={t("State")} value={state} />
-                    </View>
-                  </View>
+                  <LocationCascade
+                    district={district}
+                    editable
+                    onSelect={(item: GeoPincodeItem) => {
+                      setState(item.state);
+                      setDistrict(item.district);
+                      setCity(item.district || city);
+                      if (item.tehsil) setTehsil(item.tehsil);
+                      setPincode(/^[1-9][0-9]{5}$/.test(item.pincode) ? item.pincode : "");
+                    }}
+                    pincode={pincode}
+                    state={state}
+                  />
                 </View>
 
                 <Text style={{ marginTop: 14, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 17 }}>

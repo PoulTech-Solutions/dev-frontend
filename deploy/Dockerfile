@@ -1,9 +1,9 @@
-# Build the Expo web app, then serve it with nginx.
-# Use this later on any VPS / cloud server — no change to the app required.
+# Production-like snapshot: expo export + nginx. Rebuild when you need that baked bundle.
+# Day-to-day UI edits: deploy/Dockerfile.dev + docker-compose.dev.yml (no export).
 
 FROM node:22-alpine AS build
 WORKDIR /app
-ARG EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
+ARG EXPO_PUBLIC_API_URL=/api/v1
 ARG EXPO_PUBLIC_USE_MOCK_AUTH=false
 ARG EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
 ARG EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI=

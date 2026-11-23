@@ -1,27 +1,45 @@
-# Development: save a file → Metro Fast Refresh updates the browser (no nginx, no static export).
-# From this folder: docker compose -f docker-compose.dev.yml up --build
-# Open http://localhost:8081
+# Daily local UI: save a file → Metro Fast Refresh. No expo export, no image rebuild.
+# First time: docker compose -f docker-compose.dev.yml up -d --build
+# After that: docker compose -f docker-compose.dev.yml up -d
+# Open http://localhost:8088 (API proxied same-origin). Stop static `web` first if it holds 8088.
 #
-# Faster on Windows: skip Docker and run `cd frontend && npm run dev:web` instead.
+# Rebuild this compose only when package.json / package-lock.json changes.
+# EXPO_PUBLIC_* : recreate the web-dev container (no --build).
+#
+# Faster still on Windows: `cd frontend && npm run dev:web` → http://localhost:8081
 services:
   web-dev:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.dev
-    ports:
-      - "${FRONTEND_DEV_PORT:-8081}:8081"
+    expose:
+      - "8081"
     volumes:
       - ..:/app
       - web_dev_node_modules:/app/node_modules
     environment:
-      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_WEB_API_URL:-/api/v1}
       EXPO_PUBLIC_USE_MOCK_AUTH: ${EXPO_PUBLIC_USE_MOCK_AUTH:-false}
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}
-      EXPO_PUBLIC_GOOGLE_JS_ORIGINS: ${EXPO_PUBLIC_GOOGLE_JS_ORIGINS:-}
-      EXPO_PUBLIC_APP_WEB_ORIGIN: ${EXPO_PUBLIC_APP_WEB_ORIGIN:-}
+      EXPO_PUBLIC_GOOGLE_JS_ORIGINS: ${EXPO_PUBLIC_GOOGLE_JS_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088,http://localhost:8081,http://127.0.0.1:8081}
+      EXPO_PUBLIC_APP_WEB_ORIGIN: ${EXPO_PUBLIC_APP_WEB_ORIGIN:-http://localhost:8088}
       EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI: ${EXPO_PUBLIC_GOOGLE_WEB_REDIRECT_URI:-}
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:-}
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID:-}
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    restart: unless-stopped
+
+  web-proxy:
+    image: nginx:1.27-alpine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FRONTEND_HOST_PORT:-8088}:80"
+    volumes:
+      - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web-dev
     restart: unless-stopped
 
 volumes:

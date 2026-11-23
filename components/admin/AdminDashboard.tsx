@@ -9,6 +9,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAdminDemoStore, type AdminDemoFarm, type AdminDemoRate } from "../../store/useAdminDemoStore";
+import { useAuthStore } from "../../store/useAuthStore";
+import { canListDirectory, canManageMarketRates, canManageStaff } from "../../utils/permissions";
+import { useMarketDashboard } from "../../hooks/useMarketDashboard";
+import { InternalUsersPanel } from "./InternalUsersPanel";
+import { PoultryRateAdminPanel } from "./PoultryRateAdminPanel";
 import { useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useLanguage } from "../../utils/i18n";
@@ -242,9 +247,15 @@ export function AdminDashboard({
   const { width } = useAppLayout();
   const { colors } = useAppTheme();
   const { t } = useLanguage();
+  const user = useAuthStore((state) => state.user);
   const farms = useAdminDemoStore((state) => state.farms);
   const rates = useAdminDemoStore((state) => state.rates);
   const updateRate = useAdminDemoStore((state) => state.updateRate);
+  const canManageRates = canManageMarketRates(user?.backendRole);
+  const canManagePeople = canManageStaff(user?.backendRole);
+  const canSeeDirectory = canListDirectory(user?.backendRole);
+  const marketQuery = useMarketDashboard(null, !demoMode);
+  const eggToday = marketQuery.data?.rates?.find((item) => item.id === "eggs")?.value;
   const contentWidth = Math.min(width - 36, 1180);
   const totalDemoSales = farms.reduce(
     (sum, farm) => sum + farm.sales.reduce((farmSum, sale) => farmSum + sale.total, 0),
@@ -283,14 +294,43 @@ export function AdminDashboard({
             </View>
           )}
 
+          {!demoMode && eggToday ? (
+            <Text style={{ marginTop: 8, color: "#15803D", fontFamily: SEMIBOLD, fontSize: 13 }}>
+              {t("Live egg hub")} {marketQuery.data?.metadata.selected_zone}: ₹{eggToday}
+            </Text>
+          ) : null}
+
+          {canSeeDirectory && !demoMode ? (
+            <View style={{ marginTop: 26 }}>
+              <SectionTitle
+                title={canManagePeople ? "People directory" : "Farmer contacts"}
+                subtitle={
+                  canManagePeople
+                    ? "Email a code first. After verify, the admin or staff account is created with email verified. Farmers self-register."
+                    : "Read-only farmer names, emails, phones, and addresses."
+                }
+              />
+              <InternalUsersPanel />
+            </View>
+          ) : null}
+
           <View style={{ marginTop: 26 }}>
-            <SectionTitle title="Manage market rates" subtitle="Edit the demo rates shown for each poultry category." />
+            <SectionTitle
+              title="Manage market rates"
+              subtitle={
+                demoMode
+                  ? "Edit the demo rates shown for each poultry category."
+                  : "Publish culls and broiler rates per market hub (staff permission)."
+              }
+            />
             {demoMode ? (
               <View style={{ gap: 9 }}>
                 {rates.map((rate) => (
                   <RateEditor key={rate.id} rate={rate} onSave={updateRate} />
                 ))}
               </View>
+            ) : canManageRates ? (
+              <PoultryRateAdminPanel />
             ) : (
               <Text style={{ color: colors.muted, fontFamily: REGULAR, fontSize: 11 }}>
                 {t("Rate controls will be enabled when rate-management endpoints are connected.")}
