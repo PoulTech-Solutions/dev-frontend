@@ -18,7 +18,7 @@ export function PoultryRateAdminPanel() {
   const upsertMutation = useUpsertPoultryRates();
 
   const defaultZone =
-    dashboardQuery.data?.metadata.selected_zone ?? zonesQuery.data?.default_zone ?? "";
+    dashboardQuery.data?.metadata?.selected_zone ?? zonesQuery.data?.default_zone ?? "";
 
   const [zone, setZone] = useState("");
   const [product, setProduct] = useState<"culls" | "broilers">("culls");
@@ -68,7 +68,7 @@ export function PoultryRateAdminPanel() {
     });
   };
 
-  const cities = zonesQuery.data?.zones ?? [];
+  const cities = Array.isArray(zonesQuery.data?.zones) ? zonesQuery.data.zones : [];
   const carriedHint =
     currentQuery.data?.today_carried && currentQuery.data.today_source_date
       ? `${t("No rate for today yet. Showing last published")} ${currentQuery.data.today_source_date}. ${t("Save to record it for today.")}`

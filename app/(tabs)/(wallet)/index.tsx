@@ -31,7 +31,7 @@ export default function WalletScreen() {
   const { colors, isDark } = useAppTheme();
   const pageBg = pageToneColor("amber", isDark, colors.page);
   const { language, t } = useLanguage();
-  const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
+  const isDemoSession = useAuthStore((state) => Boolean(state.user?.id?.startsWith("mock-")));
   const balance = useWalletStore((state) => state.balance);
   const referralBalance = useWalletStore((state) => state.referralBalance);
   const referralCode = useWalletStore((state) => state.referralCode);

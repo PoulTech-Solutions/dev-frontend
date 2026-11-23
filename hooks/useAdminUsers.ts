@@ -20,7 +20,8 @@ export function useAdminUsers(enabled = true) {
     queryKey: ["admin", "users"],
     queryFn: ({ pageParam }) => listInternalUsers({ limit: DIRECTORY_PAGE_SIZE, offset: pageParam }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.has_more ? last.offset + last.items.length : undefined),
+    getNextPageParam: (last) =>
+      last.has_more && Array.isArray(last.items) ? last.offset + last.items.length : undefined,
     enabled: canFetch,
     staleTime: 15_000,
   });

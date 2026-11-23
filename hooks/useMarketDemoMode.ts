@@ -6,7 +6,7 @@ export function useMarketDemoMode(): boolean {
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
 
-  if (user?.id.startsWith("mock-")) return true;
+  if (user?.id?.startsWith("mock-")) return true;
   if (accessToken && user && !user.id.startsWith("mock-")) return false;
   return isMockAuthEnabled;
 }

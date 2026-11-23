@@ -172,9 +172,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user });
   },
   signOut: async () => {
-    const { clearAuthSession } = await import("../services/authStorage");
-    const token = get().accessToken;
-    if (token) {
+    if (get().accessToken) {
       try {
         const { logoutSession } = await import("../services/authService");
         await logoutSession();
@@ -182,7 +180,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Local sign-out still proceeds if the server session is already gone.
       }
     }
-    await clearAuthSession();
+    try {
+      const { clearAuthSession } = await import("../services/authStorage");
+      await clearAuthSession();
+    } catch {
+      // Drop in-memory session even if storage clear fails.
+    }
+    try {
+      const { appQueryClient } = await import("../services/appQueryClient");
+      appQueryClient.clear();
+    } catch {
+      // Cache clear is best-effort.
+    }
     set({ ...initialSession, isHydrated: true, isRemembered: false });
   },
   setAccessToken: async (accessToken, refreshToken) => {

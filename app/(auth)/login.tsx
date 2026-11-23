@@ -560,7 +560,7 @@ function LoginForm() {
     } catch (error) {
       if (isAlreadySignedInError(error)) {
         setShowDeviceSwitchPrompt(true);
-        setBanner(getAuthErrorMessage(error));
+        setBanner("This account is already signed in on another device. Use Sign in on this device.");
         setBannerIsError(false);
         return;
       }
@@ -605,7 +605,7 @@ function LoginForm() {
     } catch (error) {
       if (isAlreadySignedInError(error)) {
         setShowDeviceSwitchPrompt(true);
-        setBanner(getAuthErrorMessage(error));
+        setBanner("This account is already signed in on another device. Use Sign in on this device.");
         setBannerIsError(false);
         return;
       }

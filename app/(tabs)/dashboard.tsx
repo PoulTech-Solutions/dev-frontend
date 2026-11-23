@@ -124,7 +124,7 @@ export default function DashboardScreen() {
   const user = useAuthStore((state) => state.user);
   const demoRates = useAdminDemoStore((state) => state.rates);
   const demoMode = useMarketDemoMode();
-  const marketQuery = useMarketDashboard(null);
+  const marketQuery = useMarketDashboard(null, true, { refetchInterval: 5 * 60_000 });
   const [rateDetail, setRateDetail] = useState<RateDetail | null>(null);
   const [farms, setFarms] = useState<SavedFarm[]>([]);
   const [farmSummary, setFarmSummary] = useState<FarmPortfolioSummary | null>(null);
@@ -167,10 +167,10 @@ export default function DashboardScreen() {
     !demoMode &&
     Boolean(user) &&
     !user?.pincode?.trim();
-  const zoneMatchStatus = marketQuery.data?.metadata.match_status;
+  const zoneMatchStatus = marketQuery.data?.metadata?.match_status;
   const showLocationPrompt = missingProfileLocation || needsMarketLocation;
   const showFallbackHubNotice =
-    !demoMode && zoneMatchStatus === "fallback" && Boolean(marketQuery.data?.metadata.selected_zone);
+    !demoMode && zoneMatchStatus === "fallback" && Boolean(marketQuery.data?.metadata?.selected_zone);
   const marketLoading = !demoMode && marketQuery.isLoading;
   const marketSyncMissing = !demoMode && marketErrorCode === "market_data_unavailable";
 
@@ -180,16 +180,7 @@ export default function DashboardScreen() {
   }, [demoRates, demoMode, marketQuery.data]);
 
   const liveZone =
-    marketQuery.data?.metadata.resolved_zone ?? marketQuery.data?.metadata.selected_zone ?? null;
-
-  if (user?.role === "admin") {
-    return <AdminDashboard demoMode={demoMode} />;
-  }
-
-  const open = (href: Href) => router.push(href);
-  const detailCard = rateDetail ? RATE_CARDS.find((card) => card.id === rateDetail.id) : undefined;
-  const detailRate = rateDetail ? rates.find((item) => item.id === rateDetail.id) : undefined;
-  const previewProducts = DEMO_PRODUCTS.slice(0, 4);
+    marketQuery.data?.metadata?.resolved_zone ?? marketQuery.data?.metadata?.selected_zone ?? null;
 
   const tickerItems = useMemo(() => {
     if (!demoMode) {
@@ -238,6 +229,15 @@ export default function DashboardScreen() {
       })),
     ];
   }, [demoMode, marketQuery.data?.ticker, rates]);
+
+  if (user?.role === "admin") {
+    return <AdminDashboard demoMode={demoMode} />;
+  }
+
+  const open = (href: Href) => router.push(href);
+  const detailCard = rateDetail ? RATE_CARDS.find((card) => card.id === rateDetail.id) : undefined;
+  const detailRate = rateDetail ? rates.find((item) => item.id === rateDetail.id) : undefined;
+  const previewProducts = DEMO_PRODUCTS.slice(0, 4);
 
   const servicesGrid = (
     <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 }}>
@@ -348,7 +348,7 @@ export default function DashboardScreen() {
               <Text style={{ marginBottom: 12, color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
                 {t("No address yet — showing default NECC hub")}{" "}
                 <Text style={{ fontFamily: "Poppins_600SemiBold", color: theme.ink }}>
-                  {marketQuery.data?.metadata.selected_zone}
+                  {marketQuery.data?.metadata?.selected_zone}
                 </Text>
                 {". "}
                 {t("Save a pincode above for a nearer centre, or pick one in the list.")}
@@ -697,7 +697,7 @@ export default function DashboardScreen() {
                                 {farm.sheds.length ? (
                                   <View style={{ gap: 5 }}>
                                     {farm.sheds.map((shed) => {
-                                      const recordDays = shed.flockBook?.dailyRecords.length ?? 0;
+                                      const recordDays = shed.flockBook?.dailyRecords?.length ?? 0;
                                       const birds = shed.flockBook
                                         ? latestFlockSize(shed.flockBook)
                                         : Number(String(shed.birds).replace(/,/g, "")) || 0;

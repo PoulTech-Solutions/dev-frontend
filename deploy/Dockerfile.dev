@@ -7,4 +7,5 @@ ENV WATCHPACK_POLLING=true
 COPY package.json package-lock.json* ./
 RUN npm install
 EXPOSE 8081
-CMD ["sh", "-c", "npm install && npx expo start --web --host 0.0.0.0 --port 8081"]
+# Expo 54+ only accepts --host lan|tunnel|localhost (not 0.0.0.0); lan binds for Docker nginx upstream.
+CMD ["sh", "-c", "npm install && npx expo start --web --host lan --port 8081"]

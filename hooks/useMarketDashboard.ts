@@ -5,6 +5,9 @@ import {
   fetchEggCoverage,
   fetchEggSheet,
   fetchEggTrend,
+  fetchPoultryCoverage,
+  fetchPoultrySheet,
+  fetchPoultryTrend,
   fetchMarketDashboard,
   fetchMarketZones,
   fetchPoultryRates,
@@ -18,7 +21,11 @@ function useLiveMarketEnabled(extra = true) {
   return useLiveMarketApiEnabled(extra);
 }
 
-export function useMarketDashboard(zone?: string | null, enabled = true) {
+export function useMarketDashboard(
+  zone?: string | null,
+  enabled = true,
+  opts?: { refetchInterval?: number },
+) {
   const canFetch = useLiveMarketEnabled(enabled);
 
   return useQuery({
@@ -26,6 +33,7 @@ export function useMarketDashboard(zone?: string | null, enabled = true) {
     queryFn: () => fetchMarketDashboard(zone || undefined),
     enabled: canFetch,
     staleTime: 60_000,
+    refetchInterval: opts?.refetchInterval,
     refetchOnMount: false,
     retry: 1,
   });
@@ -96,6 +104,60 @@ export function useEggSheet(
   return useQuery({
     queryKey: ["market", "sheet", zone, year, month],
     queryFn: () => fetchEggSheet(zone!, year, month),
+    enabled: canFetch,
+    staleTime: 60_000,
+  });
+}
+
+export function usePoultryCoverage(
+  product: "culls" | "broilers" | null,
+  zone: string | null | undefined,
+  enabled = true,
+) {
+  const canFetch = useLiveMarketEnabled(enabled && Boolean(product && zone));
+
+  return useQuery({
+    queryKey: ["market", "poultry-coverage", product, zone],
+    queryFn: () => fetchPoultryCoverage(product!, zone!),
+    enabled: canFetch,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function usePoultryTrend(
+  product: "culls" | "broilers" | null,
+  zone: string | null | undefined,
+  window: "days" | "month" | "year",
+  enabled = true,
+  opts?: { year?: number; month?: number; week?: number },
+) {
+  const canFetch = useLiveMarketEnabled(enabled && Boolean(product && zone));
+
+  return useQuery({
+    queryKey: ["market", "poultry-trend", product, zone, window, opts?.year, opts?.month, opts?.week],
+    queryFn: () =>
+      fetchPoultryTrend(product!, zone!, window, {
+        year: opts?.year,
+        month: opts?.month,
+        week: opts?.week,
+      }),
+    enabled: canFetch,
+    staleTime: 60_000,
+  });
+}
+
+export function usePoultrySheet(
+  product: "culls" | "broilers" | null,
+  zone: string | null | undefined,
+  year: number,
+  month: number,
+  enabled = true,
+) {
+  const canFetch = useLiveMarketEnabled(enabled && Boolean(product && zone));
+
+  return useQuery({
+    queryKey: ["market", "poultry-sheet", product, zone, year, month],
+    queryFn: () => fetchPoultrySheet(product!, zone!, year, month),
     enabled: canFetch,
     staleTime: 60_000,
   });

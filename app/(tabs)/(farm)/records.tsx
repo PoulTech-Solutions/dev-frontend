@@ -167,7 +167,7 @@ export default function FarmRecordsScreen() {
                           <Text style={{ marginTop: 10, color: colors.primary, fontFamily: "Poppins_700Bold", fontSize: 16 }}>{t(shed.name)}</Text>
                           <Text style={{ marginTop: 4, color: "#15803D", fontFamily: "Poppins_600SemiBold", fontSize: 14 }}>{n(shed.birds)} {t("Live birds")}</Text>
                           <Text style={{ marginTop: 6, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 11 }}>
-                            {t("Open record book")} · {n(shed.flockBook?.dailyRecords.length ?? 0)} {t("days")}
+                            {t("Open record book")} · {n(shed.flockBook?.dailyRecords?.length ?? 0)} {t("days")}
                           </Text>
                         </Pressable>
                       </View>

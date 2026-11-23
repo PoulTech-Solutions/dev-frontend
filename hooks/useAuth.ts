@@ -318,10 +318,9 @@ export function getAuthErrorCode(error: unknown): string | undefined {
 export function isAlreadySignedInError(error: unknown): boolean {
   const code = getAuthErrorCode(error);
   if (code === "already_signed_in") return true;
-  if (axios.isAxiosError(error) && error.response?.status === 409) {
-    return getAuthErrorMessage(error).toLowerCase().includes("another device");
-  }
-  return false;
+  if (!axios.isAxiosError(error) || error.response?.status !== 409) return false;
+  const message = (error.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
+  return typeof message === "string" && message.toLowerCase().includes("another device");
 }
 
 /** Login failures — backend `error.code` with clearer guidance for email issues. */
@@ -345,8 +344,9 @@ export function isInvalidEmailValidationError(error: unknown): boolean {
   const payload = error.response.data as {
     error?: { details?: Array<{ field?: string; message?: string }> };
   };
+  const details = payload?.error?.details;
   return Boolean(
-    payload?.error?.details?.some((d) => {
+    Array.isArray(details) && details.some((d) => {
       const field = (d.field ?? "").toLowerCase();
       const msg = (d.message ?? "").toLowerCase();
       return field.includes("email") || msg.includes("email");
@@ -399,6 +399,21 @@ function cleanBackendValidationText(raw: string): string {
     .trim();
 }
 
+/** Backend `details` is a field list on 422, or a plain object (e.g. already_signed_in). */
+function fieldErrorLines(details: unknown): string[] {
+  if (!Array.isArray(details)) return [];
+  return details
+    .map((d) => {
+      if (!d || typeof d !== "object") return "";
+      const row = d as { field?: string; message?: string };
+      const msg = row.message ? cleanBackendValidationText(row.message) : "";
+      if (!msg) return "";
+      const field = (row.field ?? "").replace(/^body\.?/, "").trim();
+      return field ? `${field}: ${msg}` : msg;
+    })
+    .filter((m): m is string => Boolean(m));
+}
+
 /**
  * Maps backend `{ error: { code, message, details? } }` to user-visible text.
  * Prefers field `details` on 422; adds retry hints on 429.
@@ -416,14 +431,7 @@ export function getAuthErrorMessage(error: unknown): string {
           message?: unknown;
         }
       | undefined;
-    const fieldErrors = payload?.error?.details
-      ?.map((d) => {
-        const msg = d.message ? cleanBackendValidationText(d.message) : "";
-        if (!msg) return "";
-        const field = (d.field ?? "").replace(/^body\.?/, "").trim();
-        return field ? `${field}: ${msg}` : msg;
-      })
-      .filter((m): m is string => Boolean(m));
+    const fieldErrors = fieldErrorLines(payload?.error?.details);
     if (fieldErrors?.length) return fieldErrors.join(" ");
     if (error.response?.status === 429) {
       const retryAfter = error.response.headers["retry-after"];

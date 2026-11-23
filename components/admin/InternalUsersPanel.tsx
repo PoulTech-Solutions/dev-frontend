@@ -221,7 +221,8 @@ export function InternalUsersPanel() {
       )}
 
       {listQuery.isLoading ? <ActivityIndicator color={colors.ink} /> : null}
-      {listQuery.data?.pages.flatMap((page) => page.items).map((row) => (
+      {Array.isArray(listQuery.data?.pages)
+        ? listQuery.data.pages.flatMap((page) => page.items).map((row) => (
         <View
           key={row.user_id}
           style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12, gap: 6 }}
@@ -262,7 +263,8 @@ export function InternalUsersPanel() {
           </View>
           ) : null}
         </View>
-      ))}
+      ))
+        : null}
       {listQuery.hasNextPage ? (
         <Pressable
           onPress={() => void listQuery.fetchNextPage()}

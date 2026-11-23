@@ -11,6 +11,9 @@ import {
   useEggTrend,
   useMarketDashboard,
   useMarketZones,
+  usePoultryCoverage,
+  usePoultrySheet,
+  usePoultryTrend,
 } from "../../hooks/useMarketDashboard";
 import { rateDelta, ratePoints, rateSeries, type AdminDemoRate, type RateWindow } from "../../store/useAdminDemoStore";
 import { MARKET_LIVE_PRODUCT_IDS, parseMarketAmount, type MarketLiveProductId } from "../../utils/marketRates";
@@ -136,12 +139,14 @@ export function RateDetailModal({
   const isMarketLiveId = MARKET_LIVE_PRODUCT_IDS.includes(rateId as MarketLiveProductId);
   const isEggs = rateId === "eggs" && liveEnabled;
   const isPoultryLive = (rateId === "culls" || rateId === "broilers") && liveEnabled;
+  const poultryProduct = isPoultryLive ? rateId : null;
   const [window, setWindow] = useState<RateWindow>(initialWindow);
   const [zone, setZone] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState(() => new Date().getFullYear());
   const [filterMonth, setFilterMonth] = useState(() => new Date().getMonth() + 1);
   const [filterWeek, setFilterWeek] = useState(() => Math.ceil(new Date().getDate() / 7));
   const [weekPicked, setWeekPicked] = useState(false);
+  const trendFiltersEnabled = (isEggs || isPoultryLive) && Boolean(zone);
 
   useEffect(() => {
     if (visible) {
@@ -153,35 +158,56 @@ export function RateDetailModal({
 
   const zonesQuery = useMarketZones(visible && (isEggs || isPoultryLive));
   const dashboardQuery = useMarketDashboard(zone, visible && (isEggs || isPoultryLive));
-  const coverageQuery = useEggCoverage(zone, visible && isEggs && Boolean(zone));
-  const trendQuery = useEggTrend(zone, window === "days" ? "days" : window, visible && isEggs && Boolean(zone), {
+  const eggCoverageQuery = useEggCoverage(zone, visible && isEggs && Boolean(zone));
+  const poultryCoverageQuery = usePoultryCoverage(
+    poultryProduct,
+    zone,
+    visible && isPoultryLive && Boolean(zone),
+  );
+  const coverageQuery = isEggs ? eggCoverageQuery : poultryCoverageQuery;
+
+  const trendWindow = window === "days" ? "days" : window;
+  const trendOpts = {
     year: filterYear,
     month: filterMonth,
     week: window === "days" && weekPicked ? filterWeek : undefined,
-  });
-  const sheetQuery = useEggSheet(
+  };
+  const eggTrendQuery = useEggTrend(zone, trendWindow, visible && isEggs && trendFiltersEnabled, trendOpts);
+  const poultryTrendQuery = usePoultryTrend(
+    poultryProduct,
+    zone,
+    trendWindow,
+    visible && isPoultryLive && trendFiltersEnabled,
+    trendOpts,
+  );
+  const trendQuery = isEggs ? eggTrendQuery : poultryTrendQuery;
+
+  const eggSheetQuery = useEggSheet(zone, filterYear, filterMonth, visible && isEggs && window === "month" && Boolean(zone));
+  const poultrySheetQuery = usePoultrySheet(
+    poultryProduct,
     zone,
     filterYear,
     filterMonth,
-    visible && isEggs && window === "month" && Boolean(zone),
+    visible && isPoultryLive && window === "month" && Boolean(zone),
   );
+  const sheetQuery = isEggs ? eggSheetQuery : poultrySheetQuery;
 
   useEffect(() => {
-    const years = coverageQuery.data?.years ?? [];
-    if (!years.length) return;
+    const years = coverageQuery.data?.years;
+    if (!Array.isArray(years) || !years.length) return;
     setFilterYear((prev) => (years.includes(prev) ? prev : years[0]));
   }, [coverageQuery.data]);
 
   useEffect(() => {
-    const months = coverageQuery.data?.months[String(filterYear)] ?? [];
-    if (!months.length) return;
+    const months = coverageQuery.data?.months?.[String(filterYear)] ?? [];
+    if (!Array.isArray(months) || !months.length) return;
     setFilterMonth((prev) => (months.includes(prev) ? prev : months[months.length - 1]));
   }, [coverageQuery.data, filterYear]);
 
   useEffect(() => {
     const key = `${filterYear}-${String(filterMonth).padStart(2, "0")}`;
-    const weeks = coverageQuery.data?.weeks[key] ?? [];
-    if (!weeks.length) return;
+    const weeks = coverageQuery.data?.weeks?.[key] ?? [];
+    if (!Array.isArray(weeks) || !weeks.length) return;
     setFilterWeek((prev) => (weeks.includes(prev) ? prev : weeks[weeks.length - 1]));
   }, [coverageQuery.data, filterYear, filterMonth]);
 
@@ -189,8 +215,8 @@ export function RateDetailModal({
     if (!visible || !(isEggs || isPoultryLive)) return;
     const next =
       zone ??
-      dashboardQuery.data?.metadata.resolved_zone ??
-      dashboardQuery.data?.metadata.selected_zone ??
+      dashboardQuery.data?.metadata?.resolved_zone ??
+      dashboardQuery.data?.metadata?.selected_zone ??
       zonesQuery.data?.default_zone ??
       null;
     if (!zone && next) setZone(next);
@@ -199,8 +225,8 @@ export function RateDetailModal({
     isEggs,
     isPoultryLive,
     zone,
-    dashboardQuery.data?.metadata.resolved_zone,
-    dashboardQuery.data?.metadata.selected_zone,
+    dashboardQuery.data?.metadata?.resolved_zone,
+    dashboardQuery.data?.metadata?.selected_zone,
     zonesQuery.data?.default_zone,
   ]);
 
@@ -236,34 +262,39 @@ export function RateDetailModal({
           : demoRate;
 
   const chartPoints = useMemo(() => {
-    if (isEggs && trendQuery.data?.points?.length) {
-      return trendQuery.data.points.map((point) => ({
+    const points = trendQuery.data?.points;
+    if ((isEggs || isPoultryLive) && Array.isArray(points) && points.length) {
+      return points.map((point) => ({
         label: formatTrendLabel(point.date, window, language),
         value: point.value,
       }));
     }
     if (!activeRate?.value) return [];
     const series = rateSeries(activeRate, window);
-    if (!series.length) return [];
+    if (!Array.isArray(series) || !series.length) return [];
     return ratePoints(series, window).map((point) => ({
       label: pointLabel(point.at, window, language),
       value: point.value,
     }));
-  }, [isEggs, trendQuery.data, activeRate, window, language]);
+  }, [isEggs, isPoultryLive, trendQuery.data, activeRate, window, language]);
 
   const monthDays = useMemo(() => {
-    const days = sheetQuery.data?.days ?? [];
+    const days = sheetQuery.data?.days;
+    if (!Array.isArray(days)) return [];
     return [...days].sort((a, b) => a.day - b.day);
   }, [sheetQuery.data?.days]);
 
-  const yearOptions = (coverageQuery.data?.years ?? []).map((year) => ({ id: year, label: String(year) }));
-  const monthOptions = (coverageQuery.data?.months[String(filterYear)] ?? []).map((month) => ({
+  const yearOptions = (Array.isArray(coverageQuery.data?.years) ? coverageQuery.data.years : []).map((year) => ({
+    id: year,
+    label: String(year),
+  }));
+  const monthList = coverageQuery.data?.months?.[String(filterYear)];
+  const monthOptions = (Array.isArray(monthList) ? monthList : []).map((month) => ({
     id: month,
     label: monthShort(month, language),
   }));
-  const weekOptions = (
-    coverageQuery.data?.weeks[`${filterYear}-${String(filterMonth).padStart(2, "0")}`] ?? []
-  ).map((week) => ({
+  const weekList = coverageQuery.data?.weeks?.[`${filterYear}-${String(filterMonth).padStart(2, "0")}`];
+  const weekOptions = (Array.isArray(weekList) ? weekList : []).map((week) => ({
     id: week,
     label: weekSpanLabel(filterYear, filterMonth, week),
   }));
@@ -276,7 +307,7 @@ export function RateDetailModal({
   const tomorrow = parseMarketAmount(activeRate?.nextValue);
   const loading =
     (isEggs || isPoultryLive) &&
-    (dashboardQuery.isPending || (isEggs && trendQuery.isPending));
+    (dashboardQuery.isPending || ((isEggs || isPoultryLive) && trendQuery.isPending));
 
   const selectZone = (name: string) => {
     setZone(name);
@@ -307,7 +338,7 @@ export function RateDetailModal({
           {loading ? <ActivityIndicator color={theme.accent} /> : null}
         </View>
 
-        {(isEggs || isPoultryLive) && zonesQuery.data?.zones?.length ? (
+        {(isEggs || isPoultryLive) && Array.isArray(zonesQuery.data?.zones) && zonesQuery.data.zones.length ? (
           <View style={{ gap: 8 }}>
             <Text style={{ color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 13, textTransform: "uppercase" }}>
               {t("Cities")}
@@ -408,7 +439,7 @@ export function RateDetailModal({
           })}
         </View>
 
-        {isEggs && coverageQuery.data?.years.length ? (
+        {(isEggs || isPoultryLive) && Array.isArray(coverageQuery.data?.years) && coverageQuery.data.years.length ? (
           <View style={{ gap: 8 }}>
             <FilterChips options={yearOptions} selected={filterYear} onSelect={setFilterYear} theme={theme} />
             {window !== "year" ? (
@@ -451,11 +482,19 @@ export function RateDetailModal({
           )}
         </View>
 
-        {isEggs && window === "month" && monthDays.length ? (
+        {(isEggs || isPoultryLive) && window === "month" && monthDays.length ? (
           <View style={{ gap: 8 }}>
             <Text style={{ color: theme.primary, fontFamily: "Poppins_700Bold", fontSize: 13, textTransform: "uppercase" }}>
               {monthShort(filterMonth, language)} {filterYear}
-              {sheetQuery.data?.necc_sheet_average ? ` · avg ₹${sheetQuery.data.necc_sheet_average}` : ""}
+              {isEggs && sheetQuery.data && "necc_sheet_average" in sheetQuery.data && sheetQuery.data.necc_sheet_average
+                ? ` · avg ₹${sheetQuery.data.necc_sheet_average}`
+                : ""}
+              {isPoultryLive &&
+              sheetQuery.data &&
+              "month_average" in sheetQuery.data &&
+              sheetQuery.data.month_average
+                ? ` · avg ₹${sheetQuery.data.month_average}`
+                : ""}
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 }}>
               {monthDays.map((day) => (
@@ -476,7 +515,7 @@ export function RateDetailModal({
           </View>
         ) : null}
 
-        {dashboardQuery.data?.metadata.disclaimer && isEggs ? (
+        {dashboardQuery.data?.metadata?.disclaimer && isEggs ? (
           <Text style={{ color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 16 }}>
             {dashboardQuery.data.metadata.disclaimer}
           </Text>

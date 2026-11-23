@@ -13,10 +13,13 @@ export function getApiErrorMessage(error: unknown): string | undefined {
     const payload = error.response?.data as {
       error?: { message?: string; details?: Array<{ field?: string; message?: string }> };
     } | undefined;
-    const details = payload?.error?.details
-      ?.map((d) => d.message)
-      .filter(Boolean)
-      .join(" ");
+    const rawDetails = payload?.error?.details;
+    const details = Array.isArray(rawDetails)
+      ? rawDetails
+          .map((d) => d?.message)
+          .filter(Boolean)
+          .join(" ")
+      : undefined;
     return details || payload?.error?.message;
   }
   return undefined;

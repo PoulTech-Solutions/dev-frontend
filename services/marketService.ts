@@ -153,6 +153,59 @@ export async function fetchEggSheet(
   return data;
 }
 
+export interface MarketPoultrySheetResponse {
+  product: string;
+  zone: string;
+  year: number;
+  month: number;
+  today: string | null;
+  yesterday: string | null;
+  tomorrow: string | null;
+  month_average: string | null;
+  days: MarketDayPrice[];
+}
+
+export async function fetchPoultryCoverage(
+  product: "culls" | "broilers",
+  zone: string,
+): Promise<MarketCoverageResponse> {
+  const { data } = await api.get<MarketCoverageResponse>("/market/poultry/coverage", {
+    params: { product, zone },
+  });
+  return data;
+}
+
+export async function fetchPoultryTrend(
+  product: "culls" | "broilers",
+  zone: string,
+  window: "days" | "month" | "year",
+  opts?: { year?: number; month?: number; week?: number },
+): Promise<MarketTrendResponse> {
+  const { data } = await api.get<MarketTrendResponse>("/market/poultry/trend", {
+    params: {
+      product,
+      zone,
+      window,
+      ...(opts?.year != null ? { year: opts.year } : {}),
+      ...(opts?.month != null ? { month: opts.month } : {}),
+      ...(opts?.week != null ? { week: opts.week } : {}),
+    },
+  });
+  return data;
+}
+
+export async function fetchPoultrySheet(
+  product: "culls" | "broilers",
+  zone: string,
+  year: number,
+  month: number,
+): Promise<MarketPoultrySheetResponse> {
+  const { data } = await api.get<MarketPoultrySheetResponse>("/market/poultry/sheet", {
+    params: { product, zone, year, month },
+  });
+  return data;
+}
+
 export async function fetchCitiesToday(): Promise<MarketCompareResponse> {
   const { data } = await api.get<MarketCompareResponse>("/market/eggs/cities-today");
   return data;

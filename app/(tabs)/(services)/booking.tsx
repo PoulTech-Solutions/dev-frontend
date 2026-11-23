@@ -90,7 +90,7 @@ export default function ServiceBookingScreen() {
   const { colors, isDark } = useAppTheme();
   const pageBg = pageToneColor("teal", isDark, colors.page);
   const { language, t } = useLanguage();
-  const isDemoSession = useAuthStore((state) => Boolean(state.user?.id.startsWith("mock-")));
+  const isDemoSession = useAuthStore((state) => Boolean(state.user?.id?.startsWith("mock-")));
   const { service: requestedService } = useLocalSearchParams<{ service?: string }>();
   const [selectedService, setSelectedService] = useState<string | null>(
     typeof requestedService === "string" ? requestedService : null,

@@ -44,7 +44,7 @@ export default function BillingScreen() {
   const pageBg = pageToneColor("navy", isDark, colors.page);
   const { language, t } = useLanguage();
   const user = useAuthStore((state) => state.user);
-  const demoMode = Boolean(user?.id.startsWith("mock-"));
+  const demoMode = Boolean(user?.id?.startsWith("mock-"));
   const [customerName, setCustomerName] = useState(demoMode ? "Aarav Poultry Traders" : "");
   const [itemName, setItemName] = useState(demoMode ? "Layer eggs · 30 trays" : "");
   const [quantity, setQuantity] = useState(demoMode ? "30" : "1");

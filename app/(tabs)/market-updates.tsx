@@ -55,7 +55,7 @@ export default function MarketUpdatesScreen() {
   const marketLoading = !demoMode && marketQuery.isLoading;
   const marketSyncMissing = !demoMode && marketErrorCode === "market_data_unavailable";
   const liveZone =
-    marketQuery.data?.metadata.resolved_zone ?? marketQuery.data?.metadata.selected_zone ?? null;
+    marketQuery.data?.metadata?.resolved_zone ?? marketQuery.data?.metadata?.selected_zone ?? null;
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     RATE_CATEGORIES.find((item) => item.id === requestedCategory)?.title ?? null,

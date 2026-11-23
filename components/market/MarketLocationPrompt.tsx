@@ -45,7 +45,7 @@ export function MarketLocationPrompt({
   };
 
   const useMyLocation = async () => {
-    if (isMockAuthEnabled || user?.id.startsWith("mock-")) {
+    if (isMockAuthEnabled || user?.id?.startsWith("mock-")) {
       setNote(t("Sign in with the real API and disable mock auth to use location."));
       return;
     }

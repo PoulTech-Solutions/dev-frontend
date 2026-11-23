@@ -388,7 +388,7 @@ function mergeDemoFarm(template: SavedFarm, saved: SavedFarm | undefined): Saved
     if (isSeedLockedShed(templateShed.id)) return templateShed;
     const savedShed = saved.sheds.find((shed) => shed.id === templateShed.id);
     if (!savedShed) return templateShed;
-    const savedRecords = savedShed.flockBook?.dailyRecords.length ?? 0;
+    const savedRecords = savedShed.flockBook?.dailyRecords?.length ?? 0;
     // Empty demo sheds refresh from template (fresh hatch). Sheds with user rows keep saved books.
     if (savedRecords === 0) return templateShed;
     return ensureShedBook({

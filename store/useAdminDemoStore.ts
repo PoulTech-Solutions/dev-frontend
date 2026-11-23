@@ -89,8 +89,8 @@ export function rateSeries(rate: AdminDemoRate, window: RateWindow) {
   return rate.history;
 }
 
-export function rateDelta(values: number[]) {
-  if (values.length < 2) return 0;
+export function rateDelta(values: number[] | null | undefined) {
+  if (!values || values.length < 2) return 0;
   return Math.round((values[values.length - 1] - values[0]) * 10) / 10;
 }
 

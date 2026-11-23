@@ -1,5 +1,5 @@
 import "../global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
   Poppins_400Regular,
   Poppins_500Medium,
@@ -10,8 +10,9 @@ import {
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuthStore } from "../store/useAuthStore";
+import { appQueryClient } from "../services/appQueryClient";
 import { useThemeStore } from "../store/useThemeStore";
 import { LanguageProvider } from "../utils/i18n";
 
@@ -22,18 +23,6 @@ void SplashScreen.preventAutoHideAsync().catch((error: unknown) => {
 });
 
 export default function RootLayout() {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            refetchOnWindowFocus: true,
-            refetchOnReconnect: true,
-            retry: 1,
-          },
-        },
-      }),
-  );
   const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
@@ -91,7 +80,7 @@ export default function RootLayout() {
   if (!isReady) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={appQueryClient}>
       <LanguageProvider>
         <StatusBar style={appearance === "dark" ? "light" : "dark"} />
         <Stack screenOptions={{ headerShown: false }}>

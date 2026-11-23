@@ -296,7 +296,7 @@ export function AdminDashboard({
 
           {!demoMode && eggToday ? (
             <Text style={{ marginTop: 8, color: "#15803D", fontFamily: SEMIBOLD, fontSize: 13 }}>
-              {t("Live egg hub")} {marketQuery.data?.metadata.selected_zone}: ₹{eggToday}
+              {t("Live egg hub")} {marketQuery.data?.metadata?.selected_zone}: ₹{eggToday}
             </Text>
           ) : null}
 
