@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SIDEBAR_WIDTH, useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -34,13 +34,13 @@ export function ProfileMenu({
   const menuWidth = sidebarVisible ? SIDEBAR_WIDTH - 24 : Math.min(SIDEBAR_WIDTH - 8, 220);
 
   const handleLogout = async () => {
+    onClose();
     try {
-      onClose();
       await signOut();
-      router.replace("/(auth)/login");
     } catch (error) {
       console.error("Could not sign out.", error);
-      Alert.alert(t("Unable to log out"), t("Please try again."));
+    } finally {
+      router.replace("/(auth)/login");
     }
   };
 

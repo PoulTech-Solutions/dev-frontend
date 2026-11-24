@@ -124,8 +124,11 @@ export async function refreshAccessToken(refreshToken?: string | null): Promise<
 }
 
 /** Revokes current server session and clears refresh cookie. */
-export async function logoutSession(): Promise<void> {
-  await api.post("/auth/logout", undefined, { skipAuthRefresh: true });
+export async function logoutSession(accessToken?: string | null): Promise<void> {
+  await api.post("/auth/logout", null, {
+    skipAuthRefresh: true,
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
 }
 
 export async function fetchProfile(accessToken: string): Promise<AuthUser> {
@@ -168,6 +171,7 @@ export async function patchMyProfile(body: {
   tehsil?: string;
   pincode?: string;
   region?: string;
+  preferred_language?: string;
 }): Promise<AuthUser> {
   const payload: Record<string, string> = {};
   for (const [key, value] of Object.entries(body)) {
@@ -233,4 +237,79 @@ export async function verifyOtp(
   });
   const user = await fetchProfile(data.access_token);
   return { access_token: data.access_token, user };
+}
+
+/** Soft-deleted account → email OTP challenge (same shape as forgot-password). */
+export async function requestAccountRestore(email: string): Promise<ForgotPasswordResult> {
+  const { data } = await api.post<OtpChallenge>("/auth/restore", { email });
+  return {
+    message: data.hint ?? "If an account can be restored, we sent a code to your email.",
+    otp_session_id: data.otp_session_id,
+    masked_destination: data.masked_destination,
+    resend_after: data.resend_after,
+  };
+}
+
+/** Confirm restore OTP → new session tokens. */
+export async function confirmAccountRestore(
+  otp_session_id: string,
+  otp: string,
+): Promise<AuthResponse> {
+  const { data } = await api.post<TokenPayload>("/auth/restore/confirm", {
+    otp_session_id,
+    otp,
+    purpose: "restore",
+  });
+  const user = await mapProfileFromToken(data);
+  return { access_token: data.access_token, user };
+}
+
+export async function startEmailChange(body: {
+  email: string;
+  password: string;
+}): Promise<OtpChallenge> {
+  const { data } = await api.post<OtpChallenge>("/me/email", body);
+  return data;
+}
+
+export async function confirmEmailChange(body: {
+  otp_session_id: string;
+  otp: string;
+}): Promise<AuthResponse> {
+  const { data } = await api.post<
+    TokenPayload & { profile?: Record<string, unknown> }
+  >("/me/email/confirm", body);
+  const user = data.profile
+    ? mapProfileToAuthUser(data.profile)
+    : await mapProfileFromToken(data);
+  return { access_token: data.access_token, user };
+}
+
+export interface AuthSessionItem {
+  session_id: string;
+  created_at: string;
+  last_used_at: string;
+  expires_at: string;
+  user_agent?: string | null;
+  ip_address?: string | null;
+  current?: boolean;
+}
+
+export async function listMySessions(): Promise<{
+  items: AuthSessionItem[];
+  one_device_at_a_time?: boolean;
+}> {
+  const { data } = await api.get<{ items: AuthSessionItem[]; one_device_at_a_time?: boolean }>(
+    "/me/sessions",
+  );
+  return data;
+}
+
+export async function revokeMySession(sessionId: string): Promise<void> {
+  await api.delete(`/me/sessions/${sessionId}`);
+}
+
+export async function deleteMyAccount(password: string): Promise<{ message: string }> {
+  const { data } = await api.delete<{ message: string }>("/me", { data: { password } });
+  return data;
 }

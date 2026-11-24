@@ -5,16 +5,45 @@ import { loadInvoiceLogo } from "./invoiceLogo";
 
 export type { InvoiceData, InvoiceItem } from "./invoiceTypes";
 
+/** Upright brand watermark (logo + name) — no diagonal cross text. */
+function drawWatermark(pdf: jsPDF, logoDataUri: string) {
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const logoSize = 28;
+  const centerX = pageWidth / 2;
+  const centerY = pageHeight / 2 - 8;
+
+  pdf.saveGraphicsState();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const GState = (pdf as any).GState as new (opts: { opacity: number }) => unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (pdf as any).setGState(new GState({ opacity: 0.12 }));
+  pdf.addImage(logoDataUri, "PNG", centerX - logoSize / 2, centerY - logoSize / 2 - 10, logoSize, logoSize);
+  pdf.setTextColor(11, 42, 91);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("Poultech Solutions", centerX, centerY + logoSize / 2 + 2, { align: "center" });
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text("Farm & Marketplace", centerX, centerY + logoSize / 2 + 8, { align: "center" });
+  pdf.restoreGraphicsState();
+}
+
 function createPdf(data: InvoiceData, logoDataUri: string) {
   const pdf = new jsPDF({ format: "a4", unit: "mm" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const left = 18;
   const right = pageWidth - 18;
-  const currency = data.currency ?? "INR";
+  // Helvetica has no ₹ glyph — use Rs. so amounts always print cleanly.
+  const currency = data.currency ?? "Rs.";
+  const money = (value: number) => `${currency} ${value.toFixed(2)}`;
   const total = data.items.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
     0,
   );
+
+  drawWatermark(pdf, logoDataUri);
 
   pdf.setFillColor(20, 83, 45);
   pdf.rect(0, 0, pageWidth, 7, "F");
@@ -83,13 +112,8 @@ function createPdf(data: InvoiceData, logoDataUri: string) {
     pdf.text(String(index + 1), columns[1], rowY + 7, { align: "center" });
     pdf.text(descriptionLines, columns[1] + 8, rowY + 7);
     pdf.text(String(item.quantity), columns[3], rowY + 7, { align: "right" });
-    pdf.text(`${currency} ${item.unitPrice.toFixed(2)}`, columns[4], rowY + 7, { align: "right" });
-    pdf.text(
-      `${currency} ${(item.quantity * item.unitPrice).toFixed(2)}`,
-      columns[5],
-      rowY + 7,
-      { align: "right" },
-    );
+    pdf.text(money(item.unitPrice), columns[4], rowY + 7, { align: "right" });
+    pdf.text(money(item.quantity * item.unitPrice), columns[5], rowY + 7, { align: "right" });
     pdf.setDrawColor(226, 232, 240);
     pdf.setLineWidth(0.25);
     pdf.line(left, rowY + rowHeight, right, rowY + rowHeight);
@@ -100,7 +124,7 @@ function createPdf(data: InvoiceData, logoDataUri: string) {
   pdf.setTextColor(71, 85, 105);
   pdf.setFontSize(10);
   pdf.text("Subtotal", right - 64, totalTop);
-  pdf.text(`${currency} ${total.toFixed(2)}`, right, totalTop, { align: "right" });
+  pdf.text(money(total), right, totalTop, { align: "right" });
   pdf.setDrawColor(20, 83, 45);
   pdf.setLineWidth(0.6);
   pdf.line(right - 78, totalTop + 5, right, totalTop + 5);
@@ -108,12 +132,19 @@ function createPdf(data: InvoiceData, logoDataUri: string) {
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(13);
   pdf.text("TOTAL DUE", right - 64, totalTop + 13);
-  pdf.text(`${currency} ${total.toFixed(2)}`, right, totalTop + 13, { align: "right" });
+  pdf.text(money(total), right, totalTop + 13, { align: "right" });
 
   pdf.setTextColor(100, 116, 139);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
-  pdf.text("Thank you for your business.", pageWidth / 2, 275, { align: "center" });
+  pdf.text("Thank you for your business.", pageWidth / 2, 268, { align: "center" });
+  pdf.setFontSize(7.5);
+  pdf.text(
+    "Official Farm Mitra invoice · Verify with Poultech Solutions · Do not alter this PDF",
+    pageWidth / 2,
+    275,
+    { align: "center" },
+  );
   return pdf;
 }
 

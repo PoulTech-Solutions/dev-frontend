@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveMarketApiEnabled } from "./useMarketDemoMode";
 import {
   fetchCitiesToday,
+  fetchEggCompare,
   fetchEggCoverage,
   fetchEggSheet,
   fetchEggTrend,
@@ -56,6 +57,17 @@ export function useCitiesToday(enabled = true) {
   return useQuery({
     queryKey: ["market", "cities-today"],
     queryFn: () => fetchCitiesToday(),
+    enabled: canFetch,
+    staleTime: 60_000,
+  });
+}
+
+export function useEggCompare(zones: string[], enabled = true) {
+  const canFetch = useLiveMarketEnabled(enabled && zones.length > 0);
+
+  return useQuery({
+    queryKey: ["market", "eggs-compare", [...zones].sort().join(",")],
+    queryFn: () => fetchEggCompare(zones),
     enabled: canFetch,
     staleTime: 60_000,
   });

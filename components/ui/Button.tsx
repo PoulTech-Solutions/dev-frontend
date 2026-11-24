@@ -79,10 +79,13 @@ export function Button({
         />
       ) : (
         <Text
+          numberOfLines={1}
           style={{
+            width: "100%",
             color: variant === "primary" ? "#FFFFFF" : colors.primary,
             fontFamily: "Poppins_600SemiBold",
             fontSize: 15,
+            textAlign: "center",
           }}
         >
           {t(label)}

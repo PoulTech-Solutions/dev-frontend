@@ -37,6 +37,7 @@ import {
   getLoginFailureMessage,
   getOtpFailureMessage,
   isAlreadySignedInError,
+  shouldSuggestAccountRestore,
   shouldSuggestRegistration,
   DEMO_ADMIN_EMAIL,
   DEMO_ADMIN_PASSWORD,
@@ -46,8 +47,10 @@ import {
   DEMO_PASSWORD,
   isMockAuthEnabled,
   useCompleteLoginOtp,
+  useConfirmAccountRestore,
   useForgotPassword,
   useLoginChallenge,
+  useRequestAccountRestore,
   useResendOtp,
   useResetPassword,
   DEMO_OTP,
@@ -399,16 +402,21 @@ function LoginForm() {
   const completeLoginOtp = useCompleteLoginOtp();
   const forgotPassword = useForgotPassword();
   const resetPasswordMutation = useResetPassword();
+  const requestRestore = useRequestAccountRestore();
+  const confirmRestore = useConfirmAccountRestore();
   const resendOtp = useResendOtp();
   const loginResendCooldown = useOtpResendCooldown();
   const resetResendCooldown = useOtpResendCooldown();
+  const restoreResendCooldown = useOtpResendCooldown();
   const google = useGoogleAuth();
-  const [loginPhase, setLoginPhase] = useState<"password" | "otp" | "reset">("password");
+  const [loginPhase, setLoginPhase] = useState<"password" | "otp" | "reset" | "restore">("password");
   const [otpSessionId, setOtpSessionId] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpHint, setOtpHint] = useState("");
   const [resetOtpSessionId, setResetOtpSessionId] = useState("");
   const [resetOtp, setResetOtp] = useState("");
+  const [restoreOtpSessionId, setRestoreOtpSessionId] = useState("");
+  const [restoreOtp, setRestoreOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -419,6 +427,7 @@ function LoginForm() {
   const [banner, setBanner] = useState("");
   const [bannerIsError, setBannerIsError] = useState(false);
   const [showRegisterHint, setShowRegisterHint] = useState(false);
+  const [showRestoreHint, setShowRestoreHint] = useState(false);
   const shake = useSharedValue(0);
   const toastOpacity = useSharedValue(0);
   const toastTranslateY = useSharedValue(-8);
@@ -435,8 +444,15 @@ function LoginForm() {
     .string()
     .trim()
     .email("Enter a valid email address you can access (for example, name@example.com).");
-  const loginEmailValue = emailForm.watch("email");
-  const registerHref = registerPathFromLogin(loginEmailValue);
+  // Avoid watch()-on-every-keystroke: it re-renders the whole login tree and can drop Android focus/IME.
+  const [registerHref, setRegisterHref] = useState(registerPathFromLogin(""));
+  useEffect(() => {
+    const sub = emailForm.watch((values, info) => {
+      if (info.name && info.name !== "email") return;
+      setRegisterHref(registerPathFromLogin(values.email ?? ""));
+    });
+    return () => sub.unsubscribe();
+  }, [emailForm]);
 
   useEffect(() => {
     entrance.value = withTiming(1, { duration: 400 });
@@ -475,6 +491,7 @@ function LoginForm() {
 
   const showError = (message: string) => {
     setShowRegisterHint(false);
+    setShowRestoreHint(false);
     setBanner(message);
     setBannerIsError(true);
     haptic("error");
@@ -482,9 +499,61 @@ function LoginForm() {
 
   const showLoginError = (error: unknown) => {
     setShowRegisterHint(shouldSuggestRegistration(error));
+    setShowRestoreHint(shouldSuggestAccountRestore(error));
     setBanner(getLoginFailureMessage(error));
     setBannerIsError(true);
     haptic("error");
+  };
+
+  const reactivateAccountRequest = async () => {
+    const parsedEmail = forgotEmailSchema.safeParse(emailForm.getValues("email"));
+    if (!parsedEmail.success) {
+      emailForm.setError("email", {
+        type: "validate",
+        message: parsedEmail.error.issues[0]?.message ?? "Enter a valid email address.",
+      });
+      runShake();
+      return;
+    }
+    setBanner("");
+    try {
+      const result = await requestRestore.mutateAsync(parsedEmail.data);
+      if (result.otp_session_id) {
+        setRestoreOtpSessionId(result.otp_session_id);
+        setRestoreOtp("");
+        restoreResendCooldown.startFromChallenge(result.resend_after);
+        setLoginPhase("restore");
+      }
+      setShowRestoreHint(false);
+      setBanner(
+        result.masked_destination
+          ? `${result.message} (${result.masked_destination})`
+          : result.message,
+      );
+      setBannerIsError(false);
+    } catch (error) {
+      showError(getAuthErrorMessage(error));
+    }
+  };
+
+  const submitRestoreOtp = async () => {
+    if (restoreOtp.length !== 6) {
+      showError("Enter the 6-digit verification code.");
+      return;
+    }
+    setBanner("");
+    try {
+      const result = await confirmRestore.mutateAsync({
+        otp_session_id: restoreOtpSessionId,
+        otp: restoreOtp,
+      });
+      await finishSignIn(
+        { accessToken: result.access_token, user: result.user },
+        true,
+      );
+    } catch (error) {
+      showError(getOtpFailureMessage(error));
+    }
   };
 
   const runShake = () => {
@@ -544,6 +613,7 @@ function LoginForm() {
     setBanner("");
     setBannerIsError(false);
     setShowRegisterHint(false);
+    setShowRestoreHint(false);
     setConfirmDeviceSwitch(false);
     setShowDeviceSwitchPrompt(false);
     try {
@@ -697,7 +767,7 @@ function LoginForm() {
     setBanner("");
     try {
       const result = await google.signInWithGoogle();
-      if (result) await finishSignIn(result, true);
+      if (result) await finishSignIn(result, rememberMe);
     } catch (error) {
       showError(getAuthErrorMessage(error));
     }
@@ -829,6 +899,30 @@ function LoginForm() {
     </Pressable>
   );
 
+  const brandHeader = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <Image
+        accessibilityLabel="Poultech Solutions logo"
+        contentFit="contain"
+        source={require("../../assets/images/logo-mark-light.png")}
+        style={{ width: 40, height: 40 }}
+      />
+      <Text
+        style={{
+          flex: 1,
+          minWidth: 0,
+          color: COLOR_PRIMARY,
+          fontFamily: FONT_BOLD,
+          fontSize: 16,
+        }}
+        numberOfLines={1}
+      >
+        Poultech Solutions
+      </Text>
+      <LanguagePicker />
+    </View>
+  );
+
   const formContent = (
     <Animated.View
       style={[
@@ -840,9 +934,6 @@ function LoginForm() {
         formEntranceStyle,
       ]}
     >
-      <View style={{ alignItems: "flex-end", marginBottom: 14 }}>
-        <LanguagePicker />
-      </View>
       <View style={{ marginBottom: 26 }}>
         <Text
           style={{
@@ -938,9 +1029,105 @@ function LoginForm() {
         </View>
       ) : null}
 
+      {showRestoreHint ? (
+        <View style={{ marginTop: 10, alignItems: "center", gap: 6 }}>
+          <TouchableOpacity
+            accessibilityLabel={t("Reactivate account")}
+            accessibilityRole="button"
+            disabled={requestRestore.isPending}
+            onPress={() => void reactivateAccountRequest()}
+          >
+            <Text
+              style={{
+                color: COLOR_ACCENT,
+                fontFamily: FONT_SEMIBOLD,
+                fontSize: 13,
+                textDecorationLine: "underline",
+              }}
+            >
+              {t("Reactivate account")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={{ marginTop: 20 }}>
         <View style={{ gap: 16 }}>
-            {loginPhase === "reset" ? (
+            {loginPhase === "restore" ? (
+              <View style={{ gap: 14 }}>
+                <Text
+                  style={{
+                    color: COLOR_MUTED,
+                    fontFamily: FONT_REGULAR,
+                    fontSize: 12,
+                    lineHeight: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {t("Enter the code from your email to reactivate your account.")}
+                </Text>
+                <OtpInput
+                  value={restoreOtp}
+                  onChange={setRestoreOtp}
+                  onComplete={() => void submitRestoreOtp()}
+                />
+                <Button
+                  accessibilityLabel={t("Reactivate and sign in")}
+                  disabled={restoreOtp.length !== 6}
+                  label={t("Reactivate & Sign In  →")}
+                  loading={confirmRestore.isPending}
+                  onPress={() => void submitRestoreOtp()}
+                />
+                <TouchableOpacity
+                  disabled={resendOtp.isPending || !restoreResendCooldown.canResend}
+                  onPress={() => {
+                    if (!restoreOtpSessionId || !restoreResendCooldown.canResend) return;
+                    void resendOtp
+                      .mutateAsync({ otp_session_id: restoreOtpSessionId, purpose: "restore" })
+                      .then((challenge) => {
+                        restoreResendCooldown.startFromChallenge(challenge.resend_after);
+                        setBanner(challenge.hint ?? "A new code was sent to your email.");
+                        setBannerIsError(false);
+                      })
+                      .catch((error) => showError(getOtpFailureMessage(error)));
+                  }}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: restoreResendCooldown.canResend ? COLOR_ACCENT : "#94A3B8",
+                      fontFamily: FONT_SEMIBOLD,
+                      fontSize: 12,
+                    }}
+                  >
+                    {restoreResendCooldown.canResend
+                      ? t("Resend code")
+                      : t("Resend code in {seconds}s").replace(
+                          "{seconds}",
+                          String(restoreResendCooldown.secondsLeft),
+                        )}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoginPhase("password");
+                    setRestoreOtpSessionId("");
+                    setRestoreOtp("");
+                  }}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: COLOR_MUTED,
+                      fontFamily: FONT_SEMIBOLD,
+                      fontSize: 12,
+                    }}
+                  >
+                    {t("Back to sign in")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : loginPhase === "reset" ? (
               <View style={{ gap: 14 }}>
                 <Text
                   style={{
@@ -1038,7 +1225,7 @@ function LoginForm() {
                 </TouchableOpacity>
               </View>
             ) : null}
-            {loginPhase !== "reset" ? (
+            {loginPhase !== "reset" && loginPhase !== "restore" ? (
             <>
             <Controller
               control={emailForm.control}
@@ -1387,40 +1574,7 @@ function LoginForm() {
               backgroundColor: colors.card,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Image
-                accessibilityLabel="Poultech Solutions logo"
-                contentFit="contain"
-                source={require("../../assets/images/logo-mark-light.png")}
-                style={{ width: 40, height: 40 }}
-              />
-              <Text
-                style={{
-                  marginLeft: 10,
-                  color: COLOR_PRIMARY,
-                  fontFamily: FONT_BOLD,
-                  fontSize: 16,
-                }}
-              >
-                Poultech Solutions
-              </Text>
-              <View
-                accessibilityLabel="Language: English"
-                style={{
-                  marginLeft: "auto",
-                  borderWidth: 1,
-                  borderColor: COLOR_LINE,
-                  borderRadius: 999,
-                  backgroundColor: colors.cardSoft,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                }}
-              >
-                <Text style={{ color: COLOR_MUTED, fontFamily: FONT_SEMIBOLD, fontSize: 10 }}>
-                  EN
-                </Text>
-              </View>
-            </View>
+            {brandHeader}
             <ScrollView
               contentContainerStyle={{
                 flexGrow: 1,
@@ -1467,6 +1621,7 @@ function LoginForm() {
             paddingBottom: 22,
           }}
         >
+          <View style={{ marginBottom: 18 }}>{brandHeader}</View>
           {formContent}
           {footer}
         </View>

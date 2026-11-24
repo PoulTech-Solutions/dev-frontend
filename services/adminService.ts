@@ -77,3 +77,64 @@ export async function setInternalUserActive(userId: string, isActive: boolean): 
 export async function deleteInternalUser(userId: string): Promise<void> {
   await api.delete(`/admin/users/${userId}`);
 }
+
+export interface AdminDashboardSaleItem {
+  id: string;
+  invoice_no: string;
+  sale_date: string;
+  buyer: string;
+  item: string;
+  quantity: number | string;
+  qty_unit: string;
+  amount_inr: number | string;
+  received_inr: number | string;
+  balance_inr: number | string;
+}
+
+export interface AdminDashboardFarmCard {
+  unit_id: string;
+  unit_name: string;
+  farm_type: string;
+  state?: string | null;
+  district?: string | null;
+  owner_user_id: string;
+  owner_email: string;
+  income_inr: number | string;
+  expenses_inr: number | string;
+  profit_inr: number | string;
+  to_receive_inr: number | string;
+  to_pay_inr: number | string;
+  units_sold: number | string;
+  sale_count: number;
+  expense_count: number;
+  sales: AdminDashboardSaleItem[];
+}
+
+export interface AdminDashboardTotals {
+  farm_count: number;
+  owner_count: number;
+  sale_count: number;
+  expense_count: number;
+  income_inr: number | string;
+  expenses_inr: number | string;
+  profit_inr: number | string;
+  to_receive_inr: number | string;
+  to_pay_inr: number | string;
+  units_sold: number | string;
+}
+
+export interface AdminDashboardResponse {
+  from_date?: string | null;
+  to_date?: string | null;
+  totals: AdminDashboardTotals;
+  farms: AdminDashboardFarmCard[];
+}
+
+export async function fetchAdminDashboard(params?: {
+  from_date?: string;
+  to_date?: string;
+  sales_limit?: number;
+}): Promise<AdminDashboardResponse> {
+  const { data } = await api.get<AdminDashboardResponse>("/admin/dashboard", { params });
+  return data;
+}

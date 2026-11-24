@@ -224,6 +224,7 @@ export interface ManualPoultryRateUpsertRequest {
   today?: string;
   yesterday?: string;
   tomorrow?: string;
+  apply_all_zones?: boolean;
 }
 
 export interface ManualPoultryRateUpsertResponse {
@@ -240,6 +241,8 @@ export interface ManualPoultryRateUpsertResponse {
   today_editable?: boolean;
   yesterday_editable?: boolean;
   tomorrow_editable?: boolean;
+  zones_updated?: number;
+  apply_all_zones?: boolean;
 }
 
 export interface ManualPoultryRateReadResponse {

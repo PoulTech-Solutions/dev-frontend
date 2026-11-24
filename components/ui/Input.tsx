@@ -1,6 +1,6 @@
 import type { Ref, ReactNode } from "react";
-import { useState } from "react";
-import { Platform, Text, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
@@ -53,6 +53,30 @@ export function Input({
 }: InputProps) {
   const { colors } = useAppTheme();
   const [isFocused, setIsFocused] = useState(false);
+  const localRef = useRef<TextInput | null>(null);
+
+  const assignRef = (node: TextInput | null) => {
+    localRef.current = node;
+    if (typeof inputRef === "function") inputRef(node);
+    else if (inputRef && "current" in inputRef) {
+      (inputRef as { current: TextInput | null }).current = node;
+    }
+  };
+
+  // Android Autofill often highlights email+password together and steals focus / hides the IME.
+  const nativeAutoComplete = Platform.OS === "android" ? "off" : autoComplete;
+  const textContentType =
+    Platform.OS === "ios"
+      ? autoComplete === "email"
+        ? "emailAddress"
+        : autoComplete === "current-password"
+          ? "password"
+          : autoComplete === "new-password"
+            ? "newPassword"
+            : autoComplete === "tel"
+              ? "telephoneNumber"
+              : "none"
+      : undefined;
 
   return (
     <View style={{ width: "100%" }}>
@@ -66,7 +90,8 @@ export function Input({
       >
         {label}
       </Text>
-      <View
+      <Pressable
+        onPress={() => localRef.current?.focus()}
         style={{
           minHeight: 52,
           flexDirection: "row",
@@ -76,17 +101,8 @@ export function Input({
           borderColor: error ? "#DC2626" : isFocused ? "#16A34A" : colors.line,
           backgroundColor: colors.cardSoft,
           paddingHorizontal: 16,
-          ...(isFocused && !error
-            ? {
-                shadowColor: "#DCFCE7",
-                shadowOpacity: 1,
-                shadowRadius: 0,
-                shadowOffset: { width: 0, height: 0 },
-                elevation: 0,
-                ...(Platform.OS === "web"
-                  ? { boxShadow: "0 0 0 4px #DCFCE7" }
-                  : {}),
-              }
+          ...(isFocused && !error && Platform.OS === "web"
+            ? { boxShadow: "0 0 0 4px #DCFCE7" }
             : {}),
         }}
       >
@@ -107,14 +123,18 @@ export function Input({
             {prefix}
           </Text>
         ) : null}
-        {icon ? <View style={{ marginRight: 10 }}>{icon}</View> : null}
+        {icon ? <View style={{ marginRight: 10 }} pointerEvents="none">{icon}</View> : null}
         <TextInput
-          ref={inputRef}
+          ref={assignRef}
           accessibilityLabel={accessibilityLabel}
           autoCapitalize="none"
-          autoComplete={autoComplete}
+          autoComplete={nativeAutoComplete}
           autoCorrect={false}
-          className="auth-input min-w-0 flex-1 outline-none"
+          blurOnSubmit={false}
+          caretHidden={false}
+          className="auth-input"
+          editable
+          importantForAutofill={Platform.OS === "android" ? "no" : "auto"}
           keyboardType={keyboardType}
           maxLength={maxLength}
           onBlur={() => {
@@ -131,6 +151,7 @@ export function Input({
           placeholderTextColor={colors.muted}
           returnKeyType={returnKeyType}
           secureTextEntry={secureTextEntry}
+          showSoftInputOnFocus
           style={{
             height: 50,
             minWidth: 0,
@@ -138,12 +159,16 @@ export function Input({
             color: colors.ink,
             fontFamily: "Poppins_400Regular",
             fontSize: 14,
-            paddingVertical: 0,
+            paddingVertical: Platform.OS === "android" ? 8 : 0,
+            textAlignVertical: "center",
+            ...(Platform.OS === "web" ? ({ outlineStyle: "none", outlineWidth: 0 } as object) : {}),
           }}
+          textContentType={textContentType}
+          underlineColorAndroid="transparent"
           value={value}
         />
         {rightElement}
-      </View>
+      </Pressable>
       {error ? (
         <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center" }}>
           <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />

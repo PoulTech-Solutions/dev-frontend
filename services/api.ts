@@ -45,7 +45,22 @@ export function rotateAccessToken(): Promise<string | null> {
         await useAuthStore.getState().setAccessToken(tokens.access_token, tokens.refresh_token);
         return tokens.access_token;
       } catch {
-        await useAuthStore.getState().signOut();
+        // Clear local auth only — avoid calling /auth/logout while refresh already failed
+        // (that path can loop through this interceptor again).
+        try {
+          const { clearAuthSession } = await import("./authStorage");
+          await clearAuthSession();
+        } catch {
+          // ignore storage errors during forced sign-out
+        }
+        useAuthStore.setState({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          isRemembered: false,
+          isHydrated: true,
+        });
         return null;
       } finally {
         refreshPromise = null;

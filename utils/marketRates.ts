@@ -75,13 +75,24 @@ function emptyRateShell(rate: AdminDemoRate): AdminDemoRate {
 }
 
 function mapApiCardToRate(shell: AdminDemoRate, live: MarketRateCard): AdminDemoRate {
+  // If "today" is blank but the month series has prices, use the latest published value.
+  let value = live.value?.trim() ?? "";
+  if (!value && live.month?.length) {
+    const last = live.month[live.month.length - 1];
+    if (Number.isFinite(last)) value = String(last);
+  }
+  let previousValue = live.previousValue?.trim() ?? "";
+  if (!previousValue && live.month && live.month.length >= 2) {
+    const prev = live.month[live.month.length - 2];
+    if (Number.isFinite(prev)) previousValue = String(prev);
+  }
   return {
     ...shell,
     title: live.title || shell.title,
     unit: live.unit || shell.unit,
-    value: live.value,
-    previousValue: live.previousValue,
-    nextValue: live.nextValue,
+    value,
+    previousValue,
+    nextValue: live.nextValue ?? "",
     month: [...(live.month ?? [])],
     year: [...(live.year ?? [])],
     history: [...(live.history ?? [])],

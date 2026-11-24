@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ProfileMenu } from "./ProfileMenu";
 import { SIDEBAR_BREAKPOINT, SIDEBAR_WIDTH, useAppLayout } from "../../hooks/useAppLayout";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -44,7 +43,6 @@ export function AppMobileHeader() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const user = useAuthStore((store) => store.user);
   const setSidebarOpen = useShellStore((state) => state.setSidebarOpen);
   const planId = useSubscriptionStore((state) => state.planId);
@@ -177,16 +175,54 @@ export function AppMobileHeader() {
               ))}
             </View>
             <View style={{ flex: 1 }} />
-            <View style={{ flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10, gap: 8 }}>
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10, gap: 8 }}>
+              {(
+                [
+                  { label: "Settings", icon: "settings-outline" as const, href: "/(tabs)/profile" as const },
+                  { label: "Contact Us", icon: "chatbubbles-outline" as const, href: "/company/contact" as const },
+                  { label: "Report Issue", icon: "warning-outline" as const, href: "/company/contact" as const },
+                ] as const
+              ).map((item) => (
+                <Pressable
+                  key={item.label}
+                  accessibilityRole="button"
+                  className="cursor-pointer hover:bg-slate-50"
+                  onPress={() => {
+                    setMenuOpen(false);
+                    router.push(item.href);
+                  }}
+                  style={{
+                    minHeight: 44,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    backgroundColor: colors.cardSoft,
+                  }}
+                >
+                  <Ionicons color={colors.ink} name={item.icon} size={18} />
+                  <Text style={{ marginLeft: 10, color: colors.ink, fontFamily: "Poppins_500Medium", fontSize: 13 }}>
+                    {t(item.label)}
+                  </Text>
+                </Pressable>
+              ))}
               <Pressable
-                accessibilityLabel={t("Open profile menu")}
+                accessibilityLabel={t("Your profile")}
                 accessibilityRole="button"
                 className="cursor-pointer hover:bg-slate-50"
                 onPress={() => {
                   setMenuOpen(false);
-                  setProfileMenuOpen(true);
+                  router.push("/(tabs)/profile");
                 }}
-                style={{ flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", borderRadius: 14, backgroundColor: colors.cardSoft, paddingHorizontal: 8 }}
+                style={{
+                  minHeight: 54,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderRadius: 14,
+                  backgroundColor: colors.cardSoft,
+                  paddingHorizontal: 8,
+                  marginTop: 4,
+                }}
               >
                 <UserAvatar name={user?.name} photoUri={user?.photoUri} />
                 <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
@@ -195,24 +231,12 @@ export function AppMobileHeader() {
                   </Text>
                   <Text style={{ color: plan.color, fontFamily: "Poppins_600SemiBold", fontSize: 10 }}>{t(plan.name)}</Text>
                 </View>
-              </Pressable>
-              <Pressable
-                accessibilityLabel={t("Settings")}
-                accessibilityRole="button"
-                className="cursor-pointer hover:bg-slate-100"
-                onPress={() => {
-                  setMenuOpen(false);
-                  router.push("/(tabs)/profile");
-                }}
-                style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.cardSoft }}
-              >
-                <Ionicons color={colors.primary} name="settings-outline" size={22} />
+                <Ionicons color={colors.muted} name="chevron-forward" size={18} />
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-      <ProfileMenu onClose={() => setProfileMenuOpen(false)} visible={profileMenuOpen} />
     </>
   );
 }
@@ -228,7 +252,6 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
   const { sidebarVisible } = useAppLayout();
   const setSidebarOpen = useShellStore((state) => state.setSidebarOpen);
   const plan = planById(planId);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const shownName = firstName(user?.name) || fullName(user?.name) || t("Your profile");
 
   useEffect(() => {
@@ -371,10 +394,10 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             }}
           >
             <Pressable
-              accessibilityLabel={t("Open profile menu")}
+              accessibilityLabel={t("Your profile")}
               accessibilityRole="button"
               className="cursor-pointer hover:bg-slate-100"
-              onPress={() => setProfileMenuOpen(true)}
+              onPress={() => router.push("/(tabs)/profile")}
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -407,26 +430,10 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
                   <Text style={{ color: plan.color, fontFamily: "Poppins_600SemiBold", fontSize: 9 }}>{t(plan.name)}</Text>
                 </View>
               </View>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={t("Settings")}
-              accessibilityRole="button"
-              className="cursor-pointer hover:bg-slate-100"
-              onPress={() => router.push("/(tabs)/profile")}
-              style={{
-                width: 46,
-                height: 46,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 13,
-                backgroundColor: colors.cardSoft,
-              }}
-            >
-              <Ionicons color={colors.primary} name="settings-outline" size={22} />
+              <Ionicons color={colors.muted} name="chevron-forward" size={18} />
             </Pressable>
           </View>
         </View>
-        <ProfileMenu onClose={() => setProfileMenuOpen(false)} visible={profileMenuOpen} />
       </>
     );
   }

@@ -14,6 +14,12 @@ export function canManageStaff(backendRole: string | undefined | null): boolean 
   return r === "admin" || r === "super_admin";
 }
 
+/** Matches backend permission admin:mitra:read (admin + super_admin). */
+export function canReadAdminMitraDashboard(backendRole: string | undefined | null): boolean {
+  const r = roleName(backendRole);
+  return r === "admin" || r === "super_admin";
+}
+
 export function canListDirectory(backendRole: string | undefined | null): boolean {
   const r = roleName(backendRole);
   return r === "staff" || r === "admin" || r === "super_admin";

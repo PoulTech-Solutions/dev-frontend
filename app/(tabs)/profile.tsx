@@ -2,8 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter, type Href } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  type LayoutRectangle,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanPicker } from "../../components/subscription/PlanPicker";
 import { Button } from "../../components/ui/Button";
@@ -17,8 +26,7 @@ import { getApiErrorMessage } from "../../utils/apiErrors";
 import { BACKEND_PASSWORD_HINT, BACKEND_PASSWORD_REGEX } from "../../utils/authValidation";
 import { isInternalAccount } from "../../utils/permissions";
 import { MarketLocationPrompt } from "../../components/market/MarketLocationPrompt";
-import { LocationCascade } from "../../components/profile/LocationCascade";
-import type { GeoPincodeItem } from "../../services/geoService";
+import { AccountSecurityPanel } from "../../components/profile/AccountSecurityPanel";
 import { pickImage } from "../../services/pickImage";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
@@ -121,20 +129,39 @@ function SimpleDropdown<T extends string>({
   hint?: string;
 }) {
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+  const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
+  const [menuBox, setMenuBox] = useState<LayoutRectangle | null>(null);
   const selected = options.find((item) => item.value === value);
 
+  const openMenu = () => {
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuBox({ x, y, width, height });
+      setOpen(true);
+    });
+  };
+
+  const closeMenu = () => {
+    setOpen(false);
+    setMenuBox(null);
+  };
+
   return (
-    <View style={{ marginTop: 2 }}>
+    <View style={{ marginTop: 2, zIndex: open ? 40 : 1 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <Text style={{ flexShrink: 1, color: colors.muted, fontFamily: "Poppins_500Medium", fontSize: 12, paddingRight: 8 }}>
           {label}
         </Text>
-        <View style={{ position: "relative", width: 148, flexShrink: 0 }}>
+        <View ref={triggerRef} collapsable={false} style={{ width: 148, flexShrink: 0 }}>
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
             className="cursor-pointer hover:bg-slate-50"
-            onPress={() => setOpen((current) => !current)}
+            onPress={() => {
+              if (open) closeMenu();
+              else openMenu();
+            }}
             style={{
               minHeight: 36,
               flexDirection: "row",
@@ -151,19 +178,48 @@ function SimpleDropdown<T extends string>({
             </Text>
             <Ionicons color={colors.muted} name={open ? "chevron-up" : "chevron-down"} size={14} style={{ marginLeft: 6 }} />
           </Pressable>
-          {open ? (
+        </View>
+      </View>
+      {hint ? (
+        <Text
+          style={{
+            marginTop: 10,
+            color: colors.muted,
+            fontFamily: "Poppins_400Regular",
+            fontSize: 11,
+            lineHeight: 16,
+            paddingRight: 4,
+          }}
+        >
+          {hint}
+        </Text>
+      ) : null}
+
+      <Modal transparent visible={open} animationType="fade" onRequestClose={closeMenu}>
+        <View style={{ flex: 1 }}>
+          <Pressable
+            accessibilityLabel={t("Close")}
+            accessibilityRole="button"
+            onPress={closeMenu}
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+          {menuBox ? (
             <View
               style={{
                 position: "absolute",
-                top: 40,
-                left: 0,
-                right: 0,
-                zIndex: 30,
+                top: menuBox.y + menuBox.height + 4,
+                left: menuBox.x,
+                width: Math.max(menuBox.width, 148),
                 borderWidth: 1,
                 borderColor: colors.line,
                 borderRadius: 8,
                 backgroundColor: colors.card,
                 overflow: "hidden",
+                elevation: 8,
+                shadowColor: "#0F172A",
+                shadowOpacity: 0.16,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
               }}
             >
               {options.map((item, index) => {
@@ -175,7 +231,7 @@ function SimpleDropdown<T extends string>({
                     className="cursor-pointer hover:bg-green-50"
                     onPress={() => {
                       onChange(item.value);
-                      setOpen(false);
+                      closeMenu();
                     }}
                     style={{
                       minHeight: 36,
@@ -197,21 +253,7 @@ function SimpleDropdown<T extends string>({
             </View>
           ) : null}
         </View>
-      </View>
-      {hint ? (
-        <Text
-          style={{
-            marginTop: open ? 12 + options.length * 36 : 10,
-            color: colors.muted,
-            fontFamily: "Poppins_400Regular",
-            fontSize: 11,
-            lineHeight: 16,
-            paddingRight: 4,
-          }}
-        >
-          {hint}
-        </Text>
-      ) : null}
+      </Modal>
     </View>
   );
 }
@@ -275,14 +317,6 @@ export default function ProfileScreen() {
     setTehsil(user?.tehsil ?? "");
     setPincode(user?.pincode ?? "");
   }, [user]);
-
-  const onPincodePick = (item: GeoPincodeItem) => {
-    setState(item.state);
-    setDistrict(item.district);
-    if (item.tehsil) setTehsil(item.tehsil);
-    setPincode(/^[1-9][0-9]{5}$/.test(item.pincode) ? item.pincode : "");
-    if (item.district) setCity(item.district);
-  };
 
   const savePassword = async () => {
     setPasswordMessage("");
@@ -407,10 +441,10 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     try {
       await signOut();
-      router.replace("/(auth)/login");
     } catch (error) {
       console.error("Could not sign out.", error);
-      Alert.alert(t("Unable to log out"), t("Please try again."));
+    } finally {
+      router.replace("/(auth)/login");
     }
   };
 
@@ -584,18 +618,6 @@ export default function ProfileScreen() {
                 <Field keyboardType="phone-pad" label={t("Phone number")} onChangeText={setPhone} value={phone} />
                 {user?.role === "poultry_owner" ? <Field label={t("Farm name")} onChangeText={setFarmName} value={farmName} /> : null}
                 <Field label={t("City")} onChangeText={setCity} value={city} />
-                {!pincode.trim() ? (
-                  <View style={{ width: "100%" }}>
-                    <MarketLocationPrompt compact />
-                  </View>
-                ) : null}
-                <LocationCascade
-                  district={district}
-                  editable
-                  onSelect={onPincodePick}
-                  pincode={pincode}
-                  state={state}
-                />
               </View>
             ) : (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -604,9 +626,6 @@ export default function ProfileScreen() {
                 <DetailRow label={t("Phone number")} value={phone} />
                 {user?.role === "poultry_owner" ? <DetailRow label={t("Farm name")} value={farmName} /> : null}
                 <DetailRow label={t("City")} value={city} />
-                <DetailRow label={t("Pincode")} value={pincode} />
-                <DetailRow label={t("District")} value={district} />
-                <DetailRow label={t("State")} value={state} />
               </View>
             )}
 
@@ -620,37 +639,49 @@ export default function ProfileScreen() {
             ) : null}
           </SettingsCard>
 
-          {profileLocked ? (
-            <SettingsCard tone="navy">
-              <SectionTitle size="sm" title="Password" tone="navy" />
-              <Text style={{ marginBottom: 8, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
-                {t("Change your password. Other devices will be signed out.")}
+          {!profileLocked ? (
+            <SettingsCard tone="amber">
+              <SectionTitle size="sm" title="Farm location" tone="amber" />
+              <MarketLocationPrompt compact startCollapsed />
+            </SettingsCard>
+          ) : null}
+
+          <SettingsCard tone="navy">
+            <SectionTitle size="sm" title="Password" tone="navy" />
+            <Text style={{ marginBottom: 8, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 12 }}>
+              {t("Change your password. Other devices will be signed out.")}
+            </Text>
+            <View style={{ gap: 8 }}>
+              <Field label={t("Current password")} onChangeText={setCurrentPassword} secureTextEntry value={currentPassword} />
+              <Field label={t("New password")} onChangeText={setNewPassword} secureTextEntry value={newPassword} />
+              <Field label={t("Confirm new password")} onChangeText={setConfirmPassword} secureTextEntry value={confirmPassword} />
+            </View>
+            {passwordMessage ? (
+              <Text
+                style={{
+                  marginTop: 8,
+                  color: passwordOk ? "#15803D" : "#B91C1C",
+                  fontFamily: "Poppins_400Regular",
+                  fontSize: 12,
+                }}
+              >
+                {t(passwordMessage)}
               </Text>
-              <View style={{ gap: 8 }}>
-                <Field label={t("Current password")} onChangeText={setCurrentPassword} secureTextEntry value={currentPassword} />
-                <Field label={t("New password")} onChangeText={setNewPassword} secureTextEntry value={newPassword} />
-                <Field label={t("Confirm new password")} onChangeText={setConfirmPassword} secureTextEntry value={confirmPassword} />
-              </View>
-              {passwordMessage ? (
-                <Text
-                  style={{
-                    marginTop: 8,
-                    color: passwordOk ? "#15803D" : "#B91C1C",
-                    fontFamily: "Poppins_400Regular",
-                    fontSize: 12,
-                  }}
-                >
-                  {t(passwordMessage)}
-                </Text>
-              ) : null}
-              <View style={{ marginTop: 12, alignSelf: "flex-start", minWidth: 180 }}>
-                <Button
-                  accessibilityLabel="Change password"
-                  label={t("Change password")}
-                  loading={isChangingPassword}
-                  onPress={() => void savePassword()}
-                />
-              </View>
+            ) : null}
+            <View style={{ marginTop: 12, alignSelf: "flex-start", minWidth: 180 }}>
+              <Button
+                accessibilityLabel="Change password"
+                label={t("Change password")}
+                loading={isChangingPassword}
+                onPress={() => void savePassword()}
+              />
+            </View>
+          </SettingsCard>
+
+          {!isMockAuthEnabled && user && !user.id.startsWith("mock-") ? (
+            <SettingsCard tone="navy">
+              <SectionTitle size="sm" title="Account security" tone="navy" />
+              <AccountSecurityPanel />
             </SettingsCard>
           ) : null}
 
@@ -668,10 +699,18 @@ export default function ProfileScreen() {
                 hint={t("Changes labels across the app. Numbers follow your selected language.")}
                 label={t("App language")}
                 onChange={(next) => {
-                  void setLanguage(next).catch((error) => {
-                    console.error("Could not save the selected language.", error);
-                    Alert.alert(t("Unable to change language"), t("Please try again."));
-                  });
+                  void (async () => {
+                    try {
+                      await setLanguage(next);
+                      if (!isMockAuthEnabled && user && !user.id.startsWith("mock-")) {
+                        const { patchMyProfile } = await import("../../services/authService");
+                        await patchMyProfile({ preferred_language: next });
+                      }
+                    } catch (error) {
+                      console.error("Could not save the selected language.", error);
+                      Alert.alert(t("Unable to change language"), t("Please try again."));
+                    }
+                  })();
                 }}
                 options={(
                   [

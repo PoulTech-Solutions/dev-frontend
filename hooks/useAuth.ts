@@ -1,9 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import {
+  confirmAccountRestore,
   forgotPassword,
   googleLogin,
   loginChallenge,
+  requestAccountRestore,
   resendOtpChallenge,
   resetPassword,
   sendOtp,
@@ -251,6 +253,37 @@ export function useResetPassword() {
   });
 }
 
+export function useRequestAccountRestore() {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      if (isMockAuthEnabled) {
+        return {
+          message: "Demo mode: enter 123456 to reactivate.",
+          otp_session_id: "mock-restore",
+          masked_destination: email,
+          resend_after: 60,
+        };
+      }
+      return requestAccountRestore(email);
+    },
+  });
+}
+
+export function useConfirmAccountRestore() {
+  return useMutation({
+    mutationFn: async ({ otp_session_id, otp }: { otp_session_id: string; otp: string }) => {
+      if (isMockAuthEnabled) {
+        if (otp !== DEMO_OTP) throw new Error(`Invalid code. Try ${DEMO_OTP} in demo mode.`);
+        return {
+          access_token: "mock-restore-token",
+          user: mockUser(DEMO_EMAIL),
+        };
+      }
+      return confirmAccountRestore(otp_session_id, otp);
+    },
+  });
+}
+
 export function useSignup() {
   return useMutation({
     mutationFn: async (body: Parameters<typeof signup>[0]) => {
@@ -330,6 +363,9 @@ export function getLoginFailureMessage(error: unknown): string {
   if (code === "registration_required" || code === "email_not_verified") {
     return message;
   }
+  if (code === "account_deleted") {
+    return message || 'Your account is deactivated. Use "Reactivate account" below to restore it.';
+  }
   if (code === "invalid_credentials") {
     return message;
   }
@@ -337,6 +373,10 @@ export function getLoginFailureMessage(error: unknown): string {
     return "Enter a valid email address you can access (for example, name@example.com).";
   }
   return message;
+}
+
+export function shouldSuggestAccountRestore(error: unknown): boolean {
+  return getAuthErrorCode(error) === "account_deleted";
 }
 
 export function isInvalidEmailValidationError(error: unknown): boolean {

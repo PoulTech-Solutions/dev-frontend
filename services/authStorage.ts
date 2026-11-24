@@ -6,6 +6,8 @@ import { logClientError } from "./secureLog";
 const SESSION_KEY = "poultech.auth.session";
 /** Web: profile only; access token stays in memory + refresh HttpOnly cookie. */
 const PROFILE_KEY = "poultech.auth.profile";
+/** Whether the last successful sign-in asked to restore the session after reload. */
+const REMEMBER_KEY = "poultech.auth.remember";
 const userRoles = new Set(["admin", "customer", "poultry_owner"]);
 
 export interface AuthSession {
@@ -81,6 +83,31 @@ function writeWebProfile(user: AuthUser): void {
   clearLegacyWebSession();
 }
 
+export async function loadRememberPreference(): Promise<boolean> {
+  if (Platform.OS === "web") {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(REMEMBER_KEY) === "1";
+  }
+  try {
+    const SecureStore = await import("expo-secure-store");
+    return (await SecureStore.getItemAsync(REMEMBER_KEY)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function saveRememberPreference(remember: boolean): Promise<void> {
+  if (Platform.OS === "web") {
+    if (typeof window === "undefined") return;
+    if (remember) window.localStorage.setItem(REMEMBER_KEY, "1");
+    else window.localStorage.removeItem(REMEMBER_KEY);
+    return;
+  }
+  const SecureStore = await import("expo-secure-store");
+  if (remember) await SecureStore.setItemAsync(REMEMBER_KEY, "1");
+  else await SecureStore.deleteItemAsync(REMEMBER_KEY);
+}
+
 export async function loadAuthSession(): Promise<AuthSession> {
   if (Platform.OS === "web") {
     const user = readWebProfile();
@@ -139,9 +166,16 @@ export async function clearAuthSession(): Promise<void> {
   if (Platform.OS === "web") {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(PROFILE_KEY);
+      window.localStorage.removeItem(REMEMBER_KEY);
       clearLegacyWebSession();
     }
     return;
   }
   await removeNativeValue();
+  try {
+    const SecureStore = await import("expo-secure-store");
+    await SecureStore.deleteItemAsync(REMEMBER_KEY);
+  } catch {
+    // ignore
+  }
 }

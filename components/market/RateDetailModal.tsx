@@ -14,6 +14,7 @@ import {
   usePoultryCoverage,
   usePoultrySheet,
   usePoultryTrend,
+  useSetMarketZone,
 } from "../../hooks/useMarketDashboard";
 import { rateDelta, ratePoints, rateSeries, type AdminDemoRate, type RateWindow } from "../../store/useAdminDemoStore";
 import { MARKET_LIVE_PRODUCT_IDS, parseMarketAmount, type MarketLiveProductId } from "../../utils/marketRates";
@@ -158,6 +159,7 @@ export function RateDetailModal({
 
   const zonesQuery = useMarketZones(visible && (isEggs || isPoultryLive));
   const dashboardQuery = useMarketDashboard(zone, visible && (isEggs || isPoultryLive));
+  const setMarketZone = useSetMarketZone();
   const eggCoverageQuery = useEggCoverage(zone, visible && isEggs && Boolean(zone));
   const poultryCoverageQuery = usePoultryCoverage(
     poultryProduct,
@@ -311,6 +313,9 @@ export function RateDetailModal({
 
   const selectZone = (name: string) => {
     setZone(name);
+    if (liveEnabled) {
+      void setMarketZone.mutateAsync(name).catch(() => undefined);
+    }
   };
 
   return (

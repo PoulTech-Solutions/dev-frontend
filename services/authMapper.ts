@@ -3,7 +3,8 @@ import type { AuthUser, UserRole } from "../store/useAuthStore";
 /** Maps backend RBAC names to UI roles used in Expo routes. */
 export function mapBackendRole(role: string | undefined | null): UserRole {
   const r = (role ?? "user").toLowerCase();
-  if (r === "farm_owner" || r === "farm_member") return "poultry_owner";
+  // Phase-1 Mitra: `user` and farm roles can own units / daily records / billing.
+  if (r === "user" || r === "farm_owner" || r === "farm_member") return "poultry_owner";
   if (r === "admin" || r === "super_admin" || r === "staff") return "admin";
   return "customer";
 }

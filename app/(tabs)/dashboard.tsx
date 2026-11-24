@@ -24,6 +24,7 @@ import {
   type FarmPortfolioSummary,
   type SavedFarm,
 } from "../../services/localRecords";
+import { loadMitraFarms } from "../../services/mitraFarmAdapter";
 import { latestFlockSize } from "../../utils/farmRecordCalc";
 import {
   rateDelta,
@@ -140,6 +141,20 @@ export default function DashboardScreen() {
       if (!user?.id || user.role === "admin") return;
       let active = true;
       const refresh = () => {
+        if (!demoMode) {
+          void loadMitraFarms()
+            .then((next) => {
+              if (!active) return;
+              setFarms(next);
+              setFarmSummary(summarizeFarmPortfolio(next));
+            })
+            .catch(() => {
+              if (!active) return;
+              setFarms([]);
+              setFarmSummary(null);
+            });
+          return;
+        }
         void loadFarms(user.id)
           .then((next) => {
             if (!active) return;
@@ -153,7 +168,7 @@ export default function DashboardScreen() {
           });
       };
       refresh();
-      const unsubscribe = subscribeFarmsChanged(refresh);
+      const unsubscribe = demoMode ? subscribeFarmsChanged(refresh) : () => undefined;
       return () => {
         active = false;
         unsubscribe();
@@ -217,7 +232,7 @@ export default function DashboardScreen() {
           label: card.title,
           value: money(Number.isFinite(today) ? today : 0),
           change:
-            Number.isFinite(today) && Number.isFinite(yesterday)
+            Number.isFinite(today) && yesterday !== null && Number.isFinite(yesterday)
               ? Math.round((today - yesterday) * 10) / 10
               : 0,
         };
@@ -230,6 +245,7 @@ export default function DashboardScreen() {
     ];
   }, [demoMode, marketQuery.data?.ticker, rates]);
 
+  // Hooks must run unconditionally — early return only after all hooks above.
   if (user?.role === "admin") {
     return <AdminDashboard demoMode={demoMode} />;
   }
@@ -547,8 +563,8 @@ export default function DashboardScreen() {
                           </View>
                         ) : (
                           <Text style={{ color: theme.muted, fontFamily: "Poppins_400Regular", fontSize: 14 }}>
-                            {rateUnavailable && needsMarketLocation && card.id === "eggs"
-                              ? t("Add pincode above")
+                            {rateUnavailable && missingProfileLocation && card.id === "eggs"
+                              ? t("Set location in My settings")
                               : t("N/A")}
                           </Text>
                         )}

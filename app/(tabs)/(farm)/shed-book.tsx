@@ -11,7 +11,15 @@ import { pageToneColor } from "../../../components/ui/SectionTitle";
 import { useAppLayout } from "../../../hooks/useAppLayout";
 import { useAppTheme } from "../../../hooks/useAppTheme";
 import { loadFarmShed, updateShedInFarm, type SavedFarm, type SavedShed } from "../../../services/localRecords";
+import {
+  loadMitraFarmShed,
+  removeMitraDailyEntry,
+  saveMitraDailyEntry,
+  saveMitraFlockSetup,
+} from "../../../services/mitraFarmAdapter";
+import { useLiveMarketApiEnabled } from "../../../hooks/useMarketDemoMode";
 import { useAuthStore } from "../../../store/useAuthStore";
+import { getApiErrorMessage } from "../../../utils/apiErrors";
 import {
   buildDailyRecord,
   calcEggNumbers,
@@ -142,6 +150,8 @@ export default function ShedBookScreen() {
   const pageBg = pageToneColor("green", isDark, colors.page);
   const { t, n } = useLanguage();
   const userId = useAuthStore((state) => state.user?.id);
+  const liveApi = useLiveMarketApiEnabled();
+  const unitId = params.farmId || params.shedId || "";
   const [farm, setFarm] = useState<SavedFarm | null>(null);
   const [shed, setShed] = useState<SavedShed | null>(null);
   const [entryOpen, setEntryOpen] = useState(false);
@@ -190,14 +200,26 @@ export default function ShedBookScreen() {
 
   const refresh = async () => {
     if (!userId || !params.farmId || !params.shedId) return;
-    const found = await loadFarmShed(userId, params.farmId, params.shedId);
-    setFarm(found?.farm ?? null);
-    setShed(found?.shed ?? null);
+    try {
+      if (liveApi) {
+        const found = await loadMitraFarmShed(params.farmId);
+        setFarm(found?.farm ?? null);
+        setShed(found?.shed ?? null);
+        return;
+      }
+      const found = await loadFarmShed(userId, params.farmId, params.shedId);
+      setFarm(found?.farm ?? null);
+      setShed(found?.shed ?? null);
+    } catch (err) {
+      setMessage(getApiErrorMessage(err) ?? t("Could not load farm records."));
+      setFarm(null);
+      setShed(null);
+    }
   };
 
   useEffect(() => {
     void refresh();
-  }, [userId, params.farmId, params.shedId]);
+  }, [userId, params.farmId, params.shedId, liveApi]);
 
   useEffect(() => {
     if (!records.length) return;
@@ -299,11 +321,22 @@ export default function ShedBookScreen() {
       period: setupPeriod,
       dailyRecords: book.dailyRecords,
     });
-    const nextShed = { ...shed, flockBook: nextBook };
-    const nextFarm = await updateShedInFarm(farm, nextShed);
-    setFarm(nextFarm);
-    setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
-    setSetupOpen(false);
+    try {
+      if (liveApi) {
+        const saved = await saveMitraFlockSetup(unitId || farm.id, nextBook);
+        setFarm(saved.farm);
+        setShed(saved.shed);
+      } else {
+        const nextShed = { ...shed, flockBook: nextBook };
+        const nextFarm = await updateShedInFarm(farm, nextShed);
+        setFarm(nextFarm);
+        setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
+      }
+      setSetupOpen(false);
+      setMessage("");
+    } catch (err) {
+      setMessage(getApiErrorMessage(err) ?? t("Could not save flock setup."));
+    }
   };
 
   const saveEntry = async () => {
@@ -329,27 +362,50 @@ export default function ShedBookScreen() {
       remark,
     });
 
-    const without = book.dailyRecords.filter((item) => item.id !== record.id);
-    const phase = resolvePhase(record.dayNumber);
-    const nextBook = { ...book, period: phase.period, dailyRecords: sortRecords([...without, record]) };
-    const nextShed = { ...shed, flockBook: nextBook };
-    const nextFarm = await updateShedInFarm(farm, nextShed);
-    setFarm(nextFarm);
-    setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
-    setEntryOpen(false);
-    setEditing(null);
-    setMessage("");
-    const groupKey = collapseMode === "week" ? `week-${weekFromDayNumber(record.dayNumber)}` : `month-${monthKeyFromDate(record.date)}`;
-    setExpanded((current) => ({ ...current, [groupKey]: true }));
+    try {
+      if (liveApi) {
+        const saved = await saveMitraDailyEntry(unitId || farm.id, record, { isEdit: Boolean(editing) });
+        setFarm(saved.farm);
+        setShed(saved.shed);
+      } else {
+        const without = book.dailyRecords.filter((item) => item.id !== record.id);
+        const phase = resolvePhase(record.dayNumber);
+        const nextBook = { ...book, period: phase.period, dailyRecords: sortRecords([...without, record]) };
+        const nextShed = { ...shed, flockBook: nextBook };
+        const nextFarm = await updateShedInFarm(farm, nextShed);
+        setFarm(nextFarm);
+        setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
+      }
+      setEntryOpen(false);
+      setEditing(null);
+      setMessage("");
+      const groupKey =
+        collapseMode === "week"
+          ? `week-${weekFromDayNumber(record.dayNumber)}`
+          : `month-${monthKeyFromDate(record.date)}`;
+      setExpanded((current) => ({ ...current, [groupKey]: true }));
+    } catch (err) {
+      setMessage(getApiErrorMessage(err) ?? t("Could not save daily record."));
+    }
   };
 
   const deleteEntry = async (record: ShedDailyRecord) => {
     if (!farm || !shed) return;
-    const nextBook = { ...book, dailyRecords: book.dailyRecords.filter((item) => item.id !== record.id) };
-    const nextShed = { ...shed, flockBook: nextBook };
-    const nextFarm = await updateShedInFarm(farm, nextShed);
-    setFarm(nextFarm);
-    setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
+    try {
+      if (liveApi) {
+        const saved = await removeMitraDailyEntry(unitId || farm.id, record.id);
+        setFarm(saved.farm);
+        setShed(saved.shed);
+        return;
+      }
+      const nextBook = { ...book, dailyRecords: book.dailyRecords.filter((item) => item.id !== record.id) };
+      const nextShed = { ...shed, flockBook: nextBook };
+      const nextFarm = await updateShedInFarm(farm, nextShed);
+      setFarm(nextFarm);
+      setShed(nextFarm.sheds.find((item) => item.id === shed.id) ?? nextShed);
+    } catch (err) {
+      setMessage(getApiErrorMessage(err) ?? t("Could not delete daily record."));
+    }
   };
 
   const handleShareWhatsApp = async () => {
@@ -578,8 +634,8 @@ export default function ShedBookScreen() {
           </Pressable>
 
           <ModuleHeader
-            title={shed.name}
-            subtitle={`${farm.name}${farm.place ? ` · ${farm.place}` : ""} · ${t("Layer record book")}`}
+            title={farm.name}
+            subtitle={`${shed.name}${farm.place ? ` · ${farm.place}` : ""} · Layer record book`}
             tone="green"
             trailing={
               <Pressable

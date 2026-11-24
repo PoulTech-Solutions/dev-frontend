@@ -12,5 +12,6 @@ export interface InvoiceData {
   sellerEmail?: string;
   invoiceDate: string;
   items: InvoiceItem[];
+  /** Defaults to ₹ on HTML / Rs. on PDF (Helvetica). */
   currency?: string;
 }

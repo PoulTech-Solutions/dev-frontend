@@ -14,15 +14,16 @@ function escapeHtml(value: string): string {
 }
 
 export function createInvoiceHtml(data: InvoiceData, logoDataUri: string): string {
-  const currency = escapeHtml(data.currency ?? "INR");
+  const currency = escapeHtml(data.currency ?? "₹");
+  const money = (value: number) => `${currency}${value.toFixed(2)}`;
   const rows = data.items
     .map(
       (item, index) => `<tr>
         <td class="number">${index + 1}</td>
         <td>${escapeHtml(item.description)}</td>
         <td class="number">${item.quantity}</td>
-        <td class="amount">${currency} ${item.unitPrice.toFixed(2)}</td>
-        <td class="amount">${currency} ${(item.quantity * item.unitPrice).toFixed(2)}</td>
+        <td class="amount">${money(item.unitPrice)}</td>
+        <td class="amount">${money(item.quantity * item.unitPrice)}</td>
       </tr>`,
     )
     .join("");
@@ -43,8 +44,37 @@ export function createInvoiceHtml(data: InvoiceData, logoDataUri: string): strin
         <title>Invoice ${escapeHtml(data.invoiceNumber)}</title>
         <style>
           * { box-sizing: border-box; }
-          body { margin: 0; padding: 40px; color: #172033; font: 14px Arial, sans-serif; }
-          .invoice { max-width: 780px; margin: 0 auto; }
+          body { margin: 0; padding: 40px; color: #172033; font: 14px Arial, sans-serif; position: relative; }
+          .invoice { max-width: 780px; margin: 0 auto; position: relative; z-index: 1; }
+          .watermark {
+            position: fixed;
+            top: 46%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            opacity: 0.12;
+            pointer-events: none;
+            z-index: 0;
+          }
+          .watermark img {
+            width: 96px;
+            height: 96px;
+            object-fit: contain;
+            border-radius: 14px;
+          }
+          .watermark .wm-name {
+            color: #0b2a5b;
+            font-size: 18px;
+            font-weight: 700;
+          }
+          .watermark .wm-tag {
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 500;
+          }
           .top { display: flex; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 3px solid #14532d; }
           .brand-row { display: flex; align-items: center; gap: 14px; }
           .brand-logo { width: 58px; height: 58px; object-fit: contain; border-radius: 10px; }
@@ -67,6 +97,11 @@ export function createInvoiceHtml(data: InvoiceData, logoDataUri: string): strin
         </style>
       </head>
       <body>
+        <div class="watermark" aria-hidden="true">
+          <img src="${logoDataUri}" alt="" />
+          <div class="wm-name">Poultech Solutions</div>
+          <div class="wm-tag">Farm &amp; Marketplace</div>
+        </div>
         <main class="invoice">
           <header class="top">
             <div>
@@ -95,10 +130,13 @@ export function createInvoiceHtml(data: InvoiceData, logoDataUri: string): strin
             <tbody>${rows}</tbody>
           </table>
           <section class="totals">
-            <div><span>Subtotal</span><strong>${currency} ${total.toFixed(2)}</strong></div>
-            <div class="grand"><span>Total due</span><span>${currency} ${total.toFixed(2)}</span></div>
+            <div><span>Subtotal</span><strong>${money(total)}</strong></div>
+            <div class="grand"><span>Total due</span><span>${money(total)}</span></div>
           </section>
-          <footer class="thanks">Thank you for your business.</footer>
+          <footer class="thanks">
+            Thank you for your business.<br />
+            <span style="font-size:11px">Official Farm Mitra invoice · Verify with Poultech Solutions · Do not alter this PDF</span>
+          </footer>
         </main>
       </body>
     </html>`;

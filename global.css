@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-.auth-input:focus {
+/* Kill browser default focus ring inside our styled auth fields. */
+.auth-input,
+.auth-input:focus,
+.auth-input:focus-visible {
   outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Chrome/Edge draw their own password-reveal control — we already ship an eye button. */
+.auth-input::-ms-reveal,
+.auth-input::-ms-clear,
+.auth-input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
 }

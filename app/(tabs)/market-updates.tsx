@@ -17,7 +17,6 @@ import { useMarketDemoMode } from "../../hooks/useMarketDemoMode";
 import { useAuthStore } from "../../store/useAuthStore";
 import { getApiErrorCode, getApiErrorMessage } from "../../utils/apiErrors";
 import { ApiConfigBanner } from "../../components/market/ApiConfigBanner";
-import { MarketLocationPrompt } from "../../components/market/MarketLocationPrompt";
 import {
   hasDynamicMarketValue,
   MARKET_RATE_LAYOUT,
@@ -92,7 +91,28 @@ export default function MarketUpdatesScreen() {
           <ModuleHeader title="Poultry info & updates" subtitle="Market rates and poultry business updates." tone="amber" />
 
           <ApiConfigBanner />
-          {!demoMode && (!user?.pincode?.trim() || needsMarketLocation) ? <MarketLocationPrompt /> : null}
+          {!demoMode && (!user?.pincode?.trim() || needsMarketLocation) ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)/profile")}
+              style={{
+                marginBottom: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#FCD34D",
+                backgroundColor: "#FFFBEB",
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            >
+              <Text style={{ color: "#92400E", fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>
+                {t("No farm location yet — showing nearest NECC hub rates.")}
+              </Text>
+              <Text style={{ marginTop: 4, color: "#78350F", fontFamily: "Poppins_400Regular", fontSize: 11 }}>
+                {t("Set your pincode in Profile → My settings for a closer centre.")}
+              </Text>
+            </Pressable>
+          ) : null}
 
           {marketSyncMissing ? (
             <Text style={{ marginBottom: 12, color: colors.muted, fontFamily: "Poppins_400Regular", fontSize: 13 }}>

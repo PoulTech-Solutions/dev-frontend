@@ -64,19 +64,39 @@ const initialSession = {
   isAuthenticated: false,
 };
 
+/** Prevents refresh-failure → signOut → logout → refresh loops. */
+let signOutInFlight: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   ...initialSession,
   isHydrated: false,
   isRemembered: false,
   hydrate: async () => {
     try {
-      const { loadAuthSession, clearAuthSession, saveAuthSession } = await import("../services/authStorage");
+      const {
+        loadAuthSession,
+        loadRememberPreference,
+        clearAuthSession,
+        saveAuthSession,
+        saveRememberPreference,
+      } = await import("../services/authStorage");
       const { refreshAccessToken, fetchProfile } = await import("../services/authService");
       const session = await loadAuthSession();
+      let remembered = await loadRememberPreference();
       let accessToken = session.accessToken;
       let refreshToken = session.refreshToken ?? null;
       let user = session.user;
-      const shouldRestore = Boolean(session.user) || Boolean(refreshToken);
+
+      // Legacy: a stored profile (or native refresh) from before the remember flag existed.
+      if (!remembered && (session.user || refreshToken)) {
+        remembered = true;
+        await saveRememberPreference(true);
+      }
+
+      // Only restore after reload when Remember me was checked.
+      // Web restores via the HttpOnly refresh cookie once the flag is set.
+      const shouldRestore =
+        remembered && (Boolean(session.user) || Boolean(refreshToken) || Platform.OS === "web");
 
       if (shouldRestore) {
         try {
@@ -84,9 +104,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           accessToken = tokens.access_token;
           if (tokens.refresh_token) refreshToken = tokens.refresh_token;
           user = await fetchProfile(tokens.access_token);
+          await saveRememberPreference(true);
           await saveAuthSession(
             { user, accessToken, refreshToken },
-            { persist: Boolean(user) },
+            { persist: true },
           );
         } catch {
           await clearAuthSession();
@@ -96,11 +117,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set({
-        user,
-        accessToken,
-        refreshToken,
-        isAuthenticated: Boolean(accessToken && user),
-        isRemembered: Boolean(user),
+        user: shouldRestore ? user : null,
+        accessToken: shouldRestore ? accessToken : null,
+        refreshToken: shouldRestore ? refreshToken : null,
+        isAuthenticated: Boolean(shouldRestore && accessToken && user),
+        isRemembered: Boolean(shouldRestore && user),
         isHydrated: true,
       });
     } catch (error) {
@@ -118,10 +139,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user });
   },
   completeSignIn: async (user, accessToken, rememberMe = true, refreshToken?: string | null) => {
-    const { clearAuthSession, saveAuthSession } = await import("../services/authStorage");
+    const { clearAuthSession, saveAuthSession, saveRememberPreference } = await import(
+      "../services/authStorage"
+    );
     const nextRefresh = refreshToken ?? get().refreshToken;
-    if (rememberMe) await saveAuthSession({ user, accessToken, refreshToken: nextRefresh }, { persist: true });
-    else await clearAuthSession();
+    if (rememberMe) {
+      await saveRememberPreference(true);
+      await saveAuthSession({ user, accessToken, refreshToken: nextRefresh }, { persist: true });
+    } else {
+      // Session-only: tokens stay in memory for this tab; reload must not restore.
+      await clearAuthSession();
+      await saveRememberPreference(false);
+    }
     set({
       user,
       accessToken,
@@ -172,27 +201,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user });
   },
   signOut: async () => {
-    if (get().accessToken) {
+    if (signOutInFlight) return signOutInFlight;
+
+    signOutInFlight = (async () => {
+      const token = get().accessToken;
+      // Clear local session first so the UI can leave protected routes immediately.
+      try {
+        const { clearAuthSession } = await import("../services/authStorage");
+        await clearAuthSession();
+      } catch {
+        // Drop in-memory session even if storage clear fails.
+      }
+      try {
+        const { appQueryClient } = await import("../services/appQueryClient");
+        appQueryClient.clear();
+      } catch {
+        // Cache clear is best-effort.
+      }
+      set({ ...initialSession, isHydrated: true, isRemembered: false });
+
+      if (!token) return;
       try {
         const { logoutSession } = await import("../services/authService");
-        await logoutSession();
+        await logoutSession(token);
       } catch {
-        // Local sign-out still proceeds if the server session is already gone.
+        // Server revoke is best-effort; local sign-out already finished.
       }
-    }
-    try {
-      const { clearAuthSession } = await import("../services/authStorage");
-      await clearAuthSession();
-    } catch {
-      // Drop in-memory session even if storage clear fails.
-    }
-    try {
-      const { appQueryClient } = await import("../services/appQueryClient");
-      appQueryClient.clear();
-    } catch {
-      // Cache clear is best-effort.
-    }
-    set({ ...initialSession, isHydrated: true, isRemembered: false });
+    })().finally(() => {
+      signOutInFlight = null;
+    });
+
+    return signOutInFlight;
   },
   setAccessToken: async (accessToken, refreshToken) => {
     const { saveAuthSession } = await import("../services/authStorage");
